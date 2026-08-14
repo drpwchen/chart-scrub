@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>clinic-deid — 繁體中文臨床文字去識別化</title>
+<meta name="description" content="Rule-based de-identification for Traditional Chinese clinical text. Runs entirely in your browser — nothing is uploaded.">
+<style>
+  :root {
+    --bg: #fbfbfa; --panel: #ffffff; --ink: #1c1d1f; --muted: #6b6f76;
+    --line: #e3e4e8; --accent: #1a6b5a; --accent-soft: #e6f1ee;
+    --warn-bg: #fff6e5; --warn-line: #e8c56a; --mask: #c2410c; --mask-bg: #fff0e8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c; --panel: #1e2126; --ink: #e8e9ec; --muted: #9aa0a8;
+      --line: #2e3238; --accent: #4fbfa3; --accent-soft: #1c2c29;
+      --warn-bg: #2c2417; --warn-line: #6b5524; --mask: #ff9a6b; --mask-bg: #33211a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.7 -apple-system, "Segoe UI", "Noto Sans TC", "PingFang TC",
+          "Microsoft JhengHei", sans-serif;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  h1 { font-size: 1.75rem; margin: 0 0 .35rem; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 1.5rem; }
+  .badge {
+    display: inline-block; background: var(--accent-soft); color: var(--accent);
+    border-radius: 999px; padding: .2rem .7rem; font-size: .8rem; font-weight: 600;
+    margin-bottom: 1rem;
+  }
+  .note {
+    background: var(--warn-bg); border: 1px solid var(--warn-line);
+    border-radius: 10px; padding: .9rem 1.1rem; margin: 0 0 1.5rem; font-size: .93rem;
+  }
+  .grid { display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 1rem;
+  }
+  .panel h2 { font-size: .82rem; text-transform: uppercase; letter-spacing: .06em;
+              color: var(--muted); margin: 0 0 .6rem; }
+  textarea, .out {
+    width: 100%; min-height: 260px; border: 0; background: transparent;
+    color: inherit; font: 14px/1.75 ui-monospace, "Cascadia Code", Consolas,
+    "Noto Sans TC", monospace; resize: vertical; outline: none;
+  }
+  .out { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
+  .out mark {
+    background: var(--mask-bg); color: var(--mask); border-radius: 4px;
+    padding: 0 .2em; font-weight: 600;
+  }
+  .bar { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0 1.25rem; }
+  button {
+    font: inherit; font-size: .9rem; padding: .45rem .95rem; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:hover { border-color: var(--accent); }
+  .hits { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .8rem; }
+  .hit {
+    font-size: .78rem; background: var(--accent-soft); color: var(--accent);
+    border-radius: 6px; padding: .15rem .5rem;
+  }
+  .hits:empty::before { content: "尚未命中任何規則"; color: var(--muted); font-size: .8rem; }
+  h3 { margin: 2.5rem 0 .5rem; font-size: 1.05rem; }
+  ul { padding-left: 1.2rem; }
+  li { margin: .35rem 0; }
+  code { background: var(--accent-soft); color: var(--accent);
+         padding: .1em .35em; border-radius: 4px; font-size: .88em; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
+           color: var(--muted); font-size: .88rem; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="badge">全部在你的瀏覽器裡跑，沒有任何資料上傳</span>
+  <h1>clinic-deid</h1>
+  <p class="sub">
+    繁體中文臨床文字的規則式去識別化。左邊貼文字，右邊看遮罩結果。<br>
+    Rule-based de-identification for Traditional Chinese clinical text — everything runs client-side.
+  </p>
+
+  <div class="note">
+    <strong>這頁只示範規則引擎。</strong>
+    完整版還有「同一個病人跨次就診固定代號」的假名化管線與殘留檢查，那部分需要本機資料庫，
+    請看 <a href="https://github.com/drpwchen/clinic-deid">GitHub repo</a>。<br>
+    <strong>請不要在這裡貼真實病歷。</strong>雖然這頁不送資料出去，但你沒必要為了試用而承擔那個風險——
+    用下面的假資料範例就好。
+  </div>
+
+  <div class="bar">
+    <button class="primary" id="demo1">載入範例：門診紀錄</button>
+    <button id="demo2">載入範例：口語轉錄</button>
+    <button id="clear">清空</button>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>輸入 Input</h2>
+      <textarea id="in" spellcheck="false" placeholder="貼上文字（請用假資料）…"></textarea>
+    </div>
+    <div class="panel">
+      <h2>遮罩後 Masked</h2>
+      <div class="out" id="out"></div>
+      <div class="hits" id="hits"></div>
+    </div>
+  </div>
+
+  <h3>它會遮什麼</h3>
+  <ul id="rulelist"></ul>
+
+  <h3>它遮不掉什麼（請務必看完）</h3>
+  <ul>
+    <li>沒有稱謂、沒有角色詞、沒有自我介紹的姓名——像「小明今天回診」——<strong>抓不到</strong>。</li>
+    <li>姓氏表只有約 100 個常見姓，罕見姓氏會漏。</li>
+    <li>純規則，沒有 NER 模型，也沒有任何學習能力。</li>
+    <li>寧可多遮：醫學名詞偶爾會被誤遮，這是刻意選的方向。</li>
+    <li>就診日期預設保留（臨床上通常需要），若你要符合 HIPAA safe harbor 的日期規則，得自己加。</li>
+  </ul>
+  <p>
+    所以正確的用法是：<strong>把它當第一道網子，不是當保證</strong>。
+    輸出仍然要有人看過再送出去。
+  </p>
+
+  <footer>
+    <a href="https://github.com/drpwchen/clinic-deid">GitHub</a> ·
+    MIT License ·
+    每家醫院的資料格式都不一樣，這份規則是照我自己的門診格式長出來的——
+    請 fork 過去改成你的版本。有建議歡迎開 issue。
+  </footer>
+</div>
+
+<script type="module">
+import { RULES, deidentify } from './rules.generated.js';
+
+const $in = document.getElementById('in');
+const $out = document.getElementById('out');
+const $hits = document.getElementById('hits');
+
+const SAMPLES = {
+  demo1: `姓名：王大明    病歷號碼：1234567
+身分證：A123456789    出生：民國60年3月5日    電話：0912-345-678
+地址：新北市板橋區文化路一段100號5樓
+
+主訴：右肩痛三個月，夜間痛醒。
+病人王大明表示上個月在李阿嬤介紹的推拿館推過，當下有比較鬆，兩天後又痛回來。
+理學檢查：Neer sign (+)、Hawkins-Kennedy (+)、empty can test 右側無力。
+McMurray test 陰性（膝，另問）。
+聯絡方式 daming@example.com`,
+  demo2: `醫師：陳先生你好，我看一下喔，你是民國48年7月21日生的對不對？
+病人：對，我叫林志偉，我住台中市西屯區台灣大道三段99號。
+醫師：好，那你這個膝蓋是什麼時候開始痛的？
+病人：大概半年，我太太林美玉說我走路都歪一邊。
+醫師：我幫你排X光，之後打我的手機0987-654-321也可以。`,
+};
+
+function escapeHtml(s) {
+  return s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
+function highlight(s) {
+  // Every replacement this tool emits is a [中文標籤] or [NAME] token.
+  return escapeHtml(s).replace(/\[[^\]\n]{1,10}\]/g, m => `<mark>${m}</mark>`);
+}
+
+function run() {
+  const { text, hits } = deidentify($in.value);
+  $out.innerHTML = highlight(text);
+  $hits.innerHTML = Object.entries(hits)
+    .map(([k, v]) => `<span class="hit">${k} ×${v}</span>`).join('');
+}
+
+$in.addEventListener('input', run);
+document.getElementById('demo1').onclick = () => { $in.value = SAMPLES.demo1; run(); };
+document.getElementById('demo2').onclick = () => { $in.value = SAMPLES.demo2; run(); };
+document.getElementById('clear').onclick = () => { $in.value = ''; run(); };
+
+document.getElementById('rulelist').innerHTML = RULES
+  .map(r => `<li><code>${r.name}</code> — ${r.description}</li>`).join('');
+
+$in.value = SAMPLES.demo1;
+run();
+</script>
+</body>
+</html>

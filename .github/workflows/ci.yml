@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+    env:
+      # Windows runners default to cp1252 stdout; the tests print CJK.
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Rule table is in sync with the browser demo
+        run: python tools/export_rules_js.py --check
+      - name: Tests
+        run: pytest -q
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  no-patient-data:
+    # A repo about de-identification must not ship a de-identified file, an
+    # alias database, or an inbox. Cheap to check, embarrassing to miss.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No databases or de-identified output in the tree
+        run: |
+          found=$(git ls-files | grep -Ei '\.(db|sqlite3?)$|\.deid\.txt$|^(inbox|raw)/' || true)
+          if [ -n "$found" ]; then
+            echo "these must never be committed:"; echo "$found"; exit 1
+          fi
+          echo "clean"

@@ -1,0 +1,21 @@
+# The alias database maps aliases back to real names. Never commit one.
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# De-identified output is still clinical text about real people.
+*.deid.txt
+inbox/
+raw/
+out/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.DS_Store
