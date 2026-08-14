@@ -106,6 +106,26 @@ with AliasStore("aliases.db") as store:
 
 This is the part worth reading twice.
 
+### The one no rule engine can fix: uniqueness
+
+**Some people stay identifiable with every identifier removed**, and no
+pattern can help you there. Two shapes of it:
+
+- **A role only one person holds.** A title that belongs to exactly one human
+  in the country identifies them completely. To the engine it is an ordinary
+  noun, indistinguishable from "the patient" or "a teacher".
+- **The event does the identifying.** After a disaster or a case that made the
+  news, a line like "hit by a parapet during the typhoon" names somebody
+  precisely while containing no name at all.
+
+What makes these re-identifiable is not a string, it is that **the description
+points at exactly one person** — and pattern matching cannot see that. Only
+you can, because only you know how rare the story is. If a colleague would
+recognise the case from the description alone, then de-identifying it is a
+decision about what to write down, not a processing step you can delegate.
+
+### The ordinary ones
+
 - **Names without a cue are missed.** `小明今天回診` has no title, no role word
   and no self-introduction, so nothing fires. Names are caught when they carry
   a title (`陳先生`), follow a role word (`病人陳小明`) or a family relation
@@ -171,7 +191,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-82 tests. Roughly a third of them assert that something is **not** masked —
+84 tests. Roughly a third of them assert that something is **not** masked —
 an engine that masks everything would pass every positive test and be useless.
 
 The suite has been mutation-verified: reverting each of the load-bearing

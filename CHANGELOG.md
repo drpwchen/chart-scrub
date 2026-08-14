@@ -14,7 +14,8 @@ tested, and documented.
   numbers, ROC national IDs and resident certificate numbers, NHI card
   numbers, mobile and landline numbers, email addresses, dates of birth in
   both ROC and Gregorian form, addresses, and names carrying a title, a role
-  word, a family relation word or an explicit declaration.
+  word, a family relation word or an explicit declaration. Addresses accept
+  the pre-2010 county names as well as the current 22.
 - **Pseudonymisation pipeline** (`clinic_deid/pseudonymize.py`): stable
   `PT-NNNN` aliases per patient, date of birth converted to age, aliases for
   other patients mentioned in passing, multi-patient splitting on three
@@ -26,12 +27,20 @@ tested, and documented.
 - **Browser demo** (`docs/`): a static page that runs the masking engine
   client-side. Its rule table is generated from the Python one by
   `tools/export_rules_js.py`, and `--check` fails CI when the two drift.
-- **82 tests**, including a Python↔JavaScript parity test over 24 inputs and
+- **84 tests**, including a Python↔JavaScript parity test over 24 inputs and
   a substantial set of negative tests (medical eponyms, bare surnames,
   measurements, punctuation must all survive).
 - **CI**: pytest on Ubuntu and Windows × Python 3.10 and 3.12, rule-table
   drift check, gitleaks over full history, and a guard that fails the build if
   a database or a `.deid.txt` file is ever committed.
+
+### Documented, not fixed
+
+- **Uniqueness is out of scope and says so.** A role only one person holds, or
+  an event that made the news, identifies someone with every identifier
+  removed. No rule can see that a description points at exactly one person, so
+  the README, the browser demo and the launch post all state it plainly
+  instead of implying the tool covers it.
 
 ### Fixed relative to the private original
 

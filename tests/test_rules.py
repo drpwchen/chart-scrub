@@ -66,6 +66,9 @@ def test_labelled_birthday_masked():
     "新北市板橋區文化路一段100號5樓",
     "台中市西屯區台灣大道三段99號",
     "宜蘭縣礁溪鄉中央路二段10巷5號",
+    # Pre-2010 county names: older patients give the address they moved in with.
+    "台北縣板橋市文化路一段100號5樓",
+    "高雄縣鳳山市中山路50號",
 ])
 def test_addresses_masked(addr):
     out = deidentify(f"住{addr}")

@@ -39,10 +39,15 @@ SURNAMES = (
 # "any 1-4 CJK chars + 縣/市". The generic form swallows the character before
 # the address (住新北市 matches 住新北 + 市), and over-masking that silently
 # eats ordinary words is the kind of damage nobody notices.
+#
+# The pre-2010 names (臺北縣, 桃園縣, 臺中縣, 臺南縣, 高雄縣) are included on
+# purpose: older patients still give their address the way it was when they
+# moved in, and a history is written down the way it was spoken.
 COUNTIES = (
     r"(?:臺北市|台北市|新北市|桃園市|臺中市|台中市|臺南市|台南市|高雄市|基隆市|"
     r"新竹市|新竹縣|嘉義市|嘉義縣|苗栗縣|彰化縣|南投縣|雲林縣|屏東縣|宜蘭縣|"
-    r"花蓮縣|臺東縣|台東縣|澎湖縣|金門縣|連江縣)"
+    r"花蓮縣|臺東縣|台東縣|澎湖縣|金門縣|連江縣|"
+    r"臺北縣|台北縣|桃園縣|臺中縣|台中縣|臺南縣|台南縣|高雄縣)"
 )
 
 # Forms of address that mark the preceding characters as a personal name.

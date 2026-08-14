@@ -91,8 +91,8 @@
     <strong>這頁只示範規則引擎。</strong>
     完整版還有「同一個病人跨次就診固定代號」的假名化管線與殘留檢查，那部分需要本機資料庫，
     請看 <a href="https://github.com/drpwchen/clinic-deid">GitHub repo</a>。<br>
-    <strong>請不要在這裡貼真實病歷。</strong>雖然這頁不送資料出去，但你沒必要為了試用而承擔那個風險——
-    用下面的假資料範例就好。
+    <strong>你貼進去的文字不會離開這個分頁。</strong>沒有上傳、沒有記錄、沒有追蹤，
+    整頁載入完成後就算<strong>把網路斷掉也照樣能用</strong>，不信可以自己試。
   </div>
 
   <div class="bar">
@@ -104,7 +104,7 @@
   <div class="grid">
     <div class="panel">
       <h2>輸入 Input</h2>
-      <textarea id="in" spellcheck="false" placeholder="貼上文字（請用假資料）…"></textarea>
+      <textarea id="in" spellcheck="false" placeholder="貼上要處理的文字…"></textarea>
     </div>
     <div class="panel">
       <h2>遮罩後 Masked</h2>
@@ -117,8 +117,18 @@
   <ul id="rulelist"></ul>
 
   <h3>它遮不掉什麼（請務必看完）</h3>
+  <p style="margin:.2rem 0 .8rem;color:var(--muted)">
+    最重要的一條在最前面，而且它<strong>不是</strong>可以靠加規則解決的：
+  </p>
   <ul>
-    <li>沒有稱謂、沒有角色詞、沒有自我介紹的姓名——像「小明今天回診」——<strong>抓不到</strong>。</li>
+    <li>
+      <strong>獨一無二的人，拿掉所有識別資訊還是認得出來。</strong>
+      一個全國只有一位的職稱，對程式來說只是個普通名詞；
+      「颱風天被女兒牆砸到」這種句子裡一個名字都沒有，卻精準指向某個人。
+      能還原身分的不是某個字串，是「這段敘述只會指向一個人」，而比對規則看不見這件事。
+      <strong>只有你看得見</strong>，因為只有你知道這個故事有多罕見。
+    </li>
+    <li>沒有稱謂、沒有角色詞、沒有自我介紹的姓名，像「小明今天回診」，<strong>抓不到</strong>。</li>
     <li>姓氏表只有約 100 個常見姓，罕見姓氏會漏。</li>
     <li>純規則，沒有 NER 模型，也沒有任何學習能力。</li>
     <li>寧可多遮：醫學名詞偶爾會被誤遮，這是刻意選的方向。</li>
@@ -126,7 +136,8 @@
   </ul>
   <p>
     所以正確的用法是：<strong>把它當第一道網子，不是當保證</strong>。
-    輸出仍然要有人看過再送出去。
+    輸出仍然要有人看過再送出去，而「這個故事會不會被認出來」那一關，
+    只有寫的人自己判斷得了。
   </p>
 
   <footer>
