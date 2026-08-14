@@ -65,11 +65,13 @@ export function normalize(text) {{
     c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
 }}
 
-// Mirrors chart_scrub.rules.deidentify_verbose().
-export function deidentify(text, {{ normalize: doNormalize = true }} = {{}}) {{
+// Mirrors chart_scrub.rules.deidentify_verbose(), including its `skip`
+// parameter (here `disabled`, a Set of rule names to leave out).
+export function deidentify(text, {{ normalize: doNormalize = true, disabled = new Set() }} = {{}}) {{
   if (doNormalize) text = normalize(text);
   const hits = {{}};
   for (const rule of RULES) {{
+    if (disabled.has(rule.name)) continue;
     rule.pattern.lastIndex = 0;
     const before = text;
     text = text.replace(rule.pattern, rule.replacement);

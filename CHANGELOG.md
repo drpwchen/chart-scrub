@@ -3,6 +3,55 @@
 All notable changes to this project are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-08-14
+
+Findings from an external design review (Codex, gpt-5.6-luna) plus our own
+pass, adjudicated and fixed together.
+
+### Added
+
+- **`is_valid_roc_id()` — the national ID checksum, as a classifier.** It
+  tells a genuine 身分證 apart from a chart number that shares the shape, and
+  the residue check uses it to grade a surviving ID-shaped token as a certain
+  leak versus a suspect. **It never gates masking**: a mistyped real ID fails
+  the checksum, and a masking pass that trusted it would leak exactly that ID.
+  身分證檢查碼驗證，只做分類；遮罩從不依賴它。
+- **Per-rule opt-out.** `--skip rule,rule` on `mask`/`ingest`, checkboxes on
+  the demo page, `skip=` in the library. You know which identifiers exist in
+  your world; the tool doesn't.
+  每條規則可個別停用（CLI `--skip`、demo 勾選框、library `skip=`）。
+- **New rules**: old-style resident certificate numbers (two letters + eight
+  digits), labelled passport numbers, and NHI card numbers with the label
+  *before* the number (`健保卡號：…` — previously only `… 健保卡` matched).
+  新規則：舊式居留證號、護照號（帶標籤）、標籤在前的健保卡號。
+- **Exit code 3**: masking ran but a record carried no recognisable identity.
+  Generic rules still applied; nothing patient-specific was substituted.
+  離開碼 3＝有紀錄找不到身分，通用規則有跑但沒做代號抽換。
+
+### Fixed
+
+- **Partial masks on overlong numbers.** A labelled 11-digit number was
+  masked ten digits deep with the tail left in the open. Digit runs are now
+  unbounded — a labelled number is eaten whole.
+  帶標籤的超長號碼不再只遮前十碼。
+- **Lower-case IDs leaked.** `a123456789` never matched; ID rules and the
+  residue check now accept both cases.
+  小寫身分證從頭到尾抓不到，已修。
+- **`出生日期：`/`出生年月日：` labels never matched** in either the rule
+  engine or the pipeline's birth parser.
+  「出生日期」「出生年月日」標籤兩層都吃得到了。
+- **Lane/alley addresses masked only up to the first segment** —
+  `和平東路100巷5號` left `5號` in the open. Up to three segments now.
+  巷弄多層地址不再遮一半。
+- **Alias numbers could collide or be re-used.** `COUNT(*)+1` numbering let
+  two processes collide and let a deleted row's number be re-issued to the
+  next patient. A monotonic counter table (seeded from existing databases)
+  now hands out each number exactly once, under a write lock.
+  代號編號改用單調遞增計數表，不重號、不因刪除而重用。
+- The residue check now also watches for lower-case and old-ARC-shaped
+  tokens, and `first_seen`/`last_seen` are actually maintained.
+  殘留檢查涵蓋小寫與舊式居留證形狀；first_seen/last_seen 開始維護。
+
 ## [0.2.0] — 2026-08-14
 
 ### Changed

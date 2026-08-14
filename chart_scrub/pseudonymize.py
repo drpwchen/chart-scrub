@@ -25,7 +25,7 @@ import datetime
 import re
 from dataclasses import dataclass, field
 
-from .rules import SURNAMES, deidentify, normalize
+from .rules import SURNAMES, deidentify, is_valid_roc_id, normalize
 from .store import AliasStore
 
 __all__ = [
@@ -39,7 +39,9 @@ __all__ = [
 ]
 
 # A chart number introduced by a label. Also used as a record separator.
-MRN_HEAD = re.compile(r"(?:病歷號碼?|案號)[\s:：#]*([A-Z]?\d{5,10})")
+# Unbounded digit run for the same reason as the mrn rule: a cap would grab
+# a partial number and leave the tail exposed.
+MRN_HEAD = re.compile(r"(?:病歷號碼?|案號)[\s:：#]*([A-Za-z]?\d{5,})")
 
 # Hand-typed clinic shorthand: a national ID (1 letter + 9 digits) sitting
 # right next to a Chinese name, in either order.
@@ -49,17 +51,18 @@ MRN_HEAD = re.compile(r"(?:病歷號碼?|案號)[\s:：#]*([A-Z]?\d{5,10})")
 # as the name being 陪同者 — which registers a role word as a patient and lets
 # the real name through untouched, with nothing downstream to flag it.
 ID_NAME = re.compile(
-    r"(?:([A-Z]\d{9})[ ,，]*([" + SURNAMES + r"][一-鿿]{1,3})"
-    r"|([" + SURNAMES + r"][一-鿿]{1,3})[ ,，]*([A-Z]\d{9}))"
+    r"(?:([A-Za-z]\d{9})[ ,，]*([" + SURNAMES + r"][一-鿿]{1,3})"
+    r"|([" + SURNAMES + r"][一-鿿]{1,3})[ ,，]*([A-Za-z]\d{9}))"
 )
 
 NAME_LABEL = re.compile(r"姓\s*名[\s:：]*([" + SURNAMES + r"][一-鿿]{1,3})")
 
-BIRTH_AD = re.compile(r"(?:出生|生日)[\s:：]*(\d{4})[/\-年](\d{1,2})[/\-月](\d{1,2})")
+_BIRTH_LABEL = r"(?:出生(?:日期|年月日)?|生日)"
+BIRTH_AD = re.compile(_BIRTH_LABEL + r"[\s:：]*(\d{4})[/\-年](\d{1,2})[/\-月](\d{1,2})")
 BIRTH_ROC = re.compile(
-    r"(?:出生|生日)[\s:：]*(?:民國)?\s*0?(\d{2,3})[/\-年](\d{1,2})[/\-月]?(\d{1,2})[日]?(?!\d)"
+    _BIRTH_LABEL + r"[\s:：]*(?:民國)?\s*0?(\d{2,3})[/\-年](\d{1,2})[/\-月]?(\d{1,2})[日]?(?!\d)"
 )
-BIRTH_COMPACT = re.compile(r"(?:出生|生日)[\s:：]*(\d{7})(?!\d)")
+BIRTH_COMPACT = re.compile(_BIRTH_LABEL + r"[\s:：]*(\d{7})(?!\d)")
 
 
 @dataclass
@@ -214,8 +217,13 @@ def residue_check(store: AliasStore, body: str) -> list[str]:
             leaks.append(f"病歷號({store.alias_for(mrn)})")
     if re.search(r"\[身分證號\][ ,，]*[一-鿿]{2,4}|[一-鿿]{2,4}[ ,，]*\[身分證號\]", body):
         leaks.append("疑似姓名貼著[身分證號]")
-    if re.search(r"(?<![A-Za-z0-9])[A-Z]\d{9}(?!\d)", body):
-        leaks.append("殘留未遮罩ID")
+    for m in re.finditer(r"(?<![A-Za-z0-9])[A-Za-z]\d{9}(?!\d)", body):
+        # The checksum grades a finding, it never excuses one: a token that
+        # fails is still reported, just as a suspect instead of a certainty.
+        certain = is_valid_roc_id(m.group())
+        leaks.append("殘留未遮罩ID(檢查碼有效)" if certain else "殘留疑似ID(檢查碼無效)")
+    if re.search(r"(?<![A-Za-z0-9])[A-Za-z]{2}\d{8}(?!\d)", body):
+        leaks.append("殘留疑似居留證號")
     return leaks
 
 
@@ -227,8 +235,14 @@ def process_record(
     birth: str | None = None,
     *,
     ref_date: datetime.date | None = None,
+    skip: frozenset[str] | set[str] = frozenset(),
 ) -> RecordResult:
-    """De-identify one record. The record's content never enters the result stats."""
+    """De-identify one record. The record's content never enters the result stats.
+
+    ``skip`` holds rule names the generic net leaves out (forwarded to
+    :func:`chart_scrub.rules.deidentify`); targeted substitution and the
+    residue check always run in full.
+    """
     text = normalize(text)
 
     if not mrn or not name:
@@ -283,7 +297,7 @@ def process_record(
                 stats["other_patients"] = stats.get("other_patients", 0) + n
 
     # 4) The generic net, last.
-    text = deidentify(text, do_normalize=False)
+    text = deidentify(text, do_normalize=False, skip=skip)
 
     header = f"[代號 {alias or '未識別'}" + (f"，{age}歲" if age is not None else "") + "]\n"
     body = header + text
@@ -303,6 +317,7 @@ def ingest(
     text: str,
     *,
     ref_date: datetime.date | None = None,
+    skip: frozenset[str] | set[str] = frozenset(),
 ) -> list[RecordResult]:
     """De-identify a blob that may hold several patients.
 
@@ -324,7 +339,9 @@ def ingest(
         store.alias_for(mrn)
         store.upsert_patient(mrn, name, birth)
 
-    results = [process_record(store, chunk, ref_date=ref_date) for chunk in records]
+    results = [
+        process_record(store, chunk, ref_date=ref_date, skip=skip) for chunk in records
+    ]
 
     # Second residue sweep: by now every patient in the batch is registered,
     # so a name that was still unknown during the first pass gets caught here.

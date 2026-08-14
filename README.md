@@ -38,9 +38,19 @@ in a local SQLite file that never leaves your machine.
 
 ## Two layers
 
-**1. A masking engine** (`chart_scrub/rules.py`) — 16 regex rules for chart
-numbers, national IDs, phone numbers, email, dates of birth, addresses and
+**1. A masking engine** (`chart_scrub/rules.py`) — 19 regex rules for chart
+numbers, national IDs, old-style resident certificate numbers, NHI card
+numbers, passports, phone numbers, email, dates of birth, addresses and
 names. No state, no database, no network. This is what the browser demo runs.
+Every rule can be switched off (`--skip rule,rule` on the CLI, checkboxes in
+the demo) — you know which identifiers exist in your world, the tool doesn't.
+
+The engine also ships `is_valid_roc_id()`, the national ID checksum.
+**It classifies, it never gates masking**: a real ID with one digit mistyped
+fails the checksum, and a masking pass that trusted the checksum would wave
+exactly that ID through. Use it to tell a genuine national ID apart from a
+chart number that shares the shape; the residue check uses it to grade a
+surviving ID-shaped token as a certain leak versus a suspected one.
 
 **2. A pseudonymisation pipeline** (`chart_scrub/pseudonymize.py`) — resolves
 who the record is about, swaps that person for a stable alias, turns the date
@@ -88,6 +98,9 @@ chart-scrub who PT-0001
 ```
 
 Exit code `2` means the residue check failed. **Do not use that output file.**
+Exit code `3` means masking ran but at least one record carried no
+recognisable identity — generic rules still applied, but nothing
+patient-specific was substituted. Read that record before trusting it.
 
 As a library:
 
@@ -143,6 +156,10 @@ decision about what to write down, not a processing step you can delegate.
   chart numbers already on record, plus two shapes of leak (a Chinese name
   glued to a masked ID, an ID-shaped token that survived). A name it has never
   seen, in a form no rule matches, passes silently.
+- **A given name that is also an ordinary word gets substituted everywhere.**
+  The pipeline replaces the patient's given name on its own (王建國 → 建國), so
+  a street called 建國路 comes out as `PT-0001路`. That is over-masking, not a
+  leak — the safe direction — but expect the occasional mangled word.
 - **Tuned to one clinic's paste format.** Mine. See below.
 
 Use it as the first net, not as a guarantee. A human still reads the output

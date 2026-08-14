@@ -25,6 +25,7 @@ __all__ = [
     "normalize",
     "deidentify",
     "deidentify_verbose",
+    "is_valid_roc_id",
 ]
 
 # Common Taiwanese surnames (roughly the top 100 by population). Used together
@@ -96,21 +97,54 @@ def _compile(rule: Rule) -> re.Pattern[str]:
 RULES: list[Rule] = [
     Rule(
         "mrn",
-        r"(病歷號碼?|病歷|案號|掛號號?碼?)[\s:：#]*[A-Z]?\d{5,10}",
+        # No upper bound on the digit run: a cap of 10 would mask the first
+        # ten digits of an 11-digit number and leave the tail sitting in the
+        # open — a partial mask that nothing downstream can notice. A labelled
+        # number is a number; eat all of it.
+        r"(病歷號碼?|病歷|案號|掛號號?碼?)[\s:：#]*[A-Za-z]?\d{5,}",
         r"\1[病歷號]",
         "Chart/medical record number introduced by a label",
     ),
     Rule(
         "roc_id",
-        r"(?<![A-Za-z0-9])[A-Z]\d{9}(?!\d)",
+        # Lower-case accepted: normalize() folds width but not case, and a
+        # hand-typed a123456789 identifies exactly as well as A123456789.
+        r"(?<![A-Za-z0-9])[A-Za-z]\d{9}(?!\d)",
         "[身分證號]",
         "ROC national ID and new-style resident certificate number",
+    ),
+    Rule(
+        "arc_old",
+        # Old-style resident certificate (ARC/APRC before 2021): two letters
+        # followed by eight digits. Its checksum differs from the national
+        # ID's, so is_valid_roc_id() does not apply to these.
+        r"(?<![A-Za-z0-9])[A-Za-z]{2}\d{8}(?!\d)",
+        "[居留證號]",
+        "Old-style resident certificate number (two letters + 8 digits)",
+    ),
+    Rule(
+        "nhi_card_labelled",
+        r"(健保卡號?|卡號)[\s:：#]*\d{4}[-\s]?\d{4}[-\s]?\d{4}(?!\d)",
+        r"\1[健保卡號]",
+        "NHI card number introduced by a label (健保卡號：…)",
     ),
     Rule(
         "nhi_card",
         r"(?<![A-Za-z0-9])(?:0{4}|[0-9]{4})-?[0-9]{4}-?[0-9]{4}(?=\s*(?:健保卡|卡號))",
         "[健保卡號]",
-        "NHI card number when the surrounding text names it",
+        "NHI card number when the text after it names it (…健保卡)",
+    ),
+    Rule(
+        "passport",
+        # Label-driven on purpose: a bare 8-9 digit number is more often a
+        # clinical value than a passport, and the address/phone rules already
+        # guard their own shapes.
+        # The value needs actual digits — a letters-only word after the label
+        # ("passport control") is prose, not a number.
+        r"(護照(?:號碼?)?|[Pp]assport(?:\s*(?:[Nn]o\.?|[Nn]umber))?)"
+        r"[\s:：#]*[A-Za-z]{0,3}\d{4,9}(?![A-Za-z0-9])",
+        r"\1[護照號]",
+        "Passport number introduced by a label",
     ),
     Rule(
         "mobile",
@@ -140,7 +174,10 @@ RULES: list[Rule] = [
     ),
     Rule(
         "birth_labelled",
-        r"(生日|出生)[是為:：\s]*[\d/年月日號\s-]{4,12}",
+        # 出生日期/出生年月日 are part of the label, not the value — without
+        # them in the label the value class (which has no 期) never reaches
+        # four characters and the whole date survives.
+        r"(生日|出生(?:日期|年月日)?)[是為:：\s]*[\d/年月日號\s-]{4,12}",
         r"\1[生日]",
         "Date of birth introduced by a label",
     ),
@@ -150,7 +187,9 @@ RULES: list[Rule] = [
         + r"(?:[一-鿿]{1,3}[區鄉鎮市])?"
         + r"(?:[一-鿿0-9]{0,12}[路街道巷弄]"
         r"(?:[一二三四五六七八九十0-9]{1,3}段)?"
-        r"(?:[0-9之\-]{1,8}[號巷弄])?"
+        # Up to three number segments: 100巷5弄3號 is one address, and
+        # stopping after the first segment leaves 5弄3號 in the open.
+        r"(?:[0-9之\-]{1,8}[號巷弄]){0,3}"
         r"(?:[0-9之\-]{1,6}[樓F])?)?",
         "[地址]",
         "Full address starting from one of the 22 counties/cities",
@@ -166,7 +205,7 @@ RULES: list[Rule] = [
         # Road names are capped at 5 characters. Longer would let the match
         # start at the beginning of the line and swallow whatever came before.
         r"[一-鿿0-9]{2,5}[路街道](?:[一二三四五六七八九十0-9]{1,3}段)?"
-        r"[0-9之\-]{1,8}[號巷](?:[0-9之\-]{1,6}[樓F])?",
+        r"(?:[0-9之\-]{1,8}[號巷弄]){1,3}(?:[0-9之\-]{1,6}[樓F])?",
         r"\1[地址]",
         "Street address without a county prefix, anchored on a house number",
         "m",
@@ -233,22 +272,59 @@ def normalize(text: str) -> str:
     return text.translate(_FULLWIDTH)
 
 
-def deidentify(text: str, *, do_normalize: bool = True) -> str:
-    """Apply every rule and return the masked text."""
-    return deidentify_verbose(text, do_normalize=do_normalize)[0]
+# National ID letter values, per the household registration checksum spec.
+_ROC_ID_LETTER = {
+    "A": 10, "B": 11, "C": 12, "D": 13, "E": 14, "F": 15, "G": 16, "H": 17,
+    "I": 34, "J": 18, "K": 19, "L": 20, "M": 21, "N": 22, "O": 35, "P": 23,
+    "Q": 24, "R": 25, "S": 26, "T": 27, "U": 28, "V": 29, "W": 32, "X": 30,
+    "Y": 31, "Z": 33,
+}
+
+
+def is_valid_roc_id(token: str) -> bool:
+    """True when ``token`` passes the national ID checksum.
+
+    **Classification only — masking must never depend on this.** A real ID
+    with one digit mistyped fails the checksum, and a masking pass gated on
+    validity would wave exactly that ID through. Use this to tell a genuine
+    身分證 apart from a chart number that merely shares the shape, or to
+    label a residue finding as a certain leak rather than a suspected one.
+
+    Covers the national ID and the new-style (2021+) resident certificate,
+    which share the algorithm. Old-style two-letter ARC numbers do not.
+    """
+    token = normalize(token).upper()
+    if not re.fullmatch(r"[A-Z]\d{9}", token):
+        return False
+    letter = _ROC_ID_LETTER[token[0]]
+    digits = [letter // 10, letter % 10] + [int(c) for c in token[1:]]
+    weights = (1, 9, 8, 7, 6, 5, 4, 3, 2, 1, 1)
+    return sum(d * w for d, w in zip(digits, weights)) % 10 == 0
+
+
+def deidentify(
+    text: str, *, do_normalize: bool = True, skip: frozenset[str] | set[str] = frozenset()
+) -> str:
+    """Apply every rule (minus ``skip``) and return the masked text."""
+    return deidentify_verbose(text, do_normalize=do_normalize, skip=skip)[0]
 
 
 def deidentify_verbose(
-    text: str, *, do_normalize: bool = True
+    text: str, *, do_normalize: bool = True, skip: frozenset[str] | set[str] = frozenset()
 ) -> tuple[str, dict[str, int]]:
     """Apply every rule, returning ``(masked_text, hits_per_rule)``.
 
-    Only rules that fired appear in the count dict.
+    ``skip`` holds rule names to leave out — the caller decides which
+    identifiers exist in their world (a clinic that never sees passport
+    numbers can drop that rule). Only rules that fired appear in the count
+    dict.
     """
     if do_normalize:
         text = normalize(text)
     counts: dict[str, int] = {}
     for rule, pattern in _COMPILED:
+        if rule.name in skip:
+            continue
         text, n = pattern.subn(rule.replacement, text)
         if n:
             counts[rule.name] = n

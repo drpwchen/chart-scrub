@@ -239,7 +239,18 @@ def test_residue_check_catches_a_known_chart_number(store):
 
 
 def test_residue_check_catches_an_unmasked_id(store):
-    assert "殘留未遮罩ID" in residue_check(store, "身分證 A123456789")
+    # A123456789 happens to pass the checksum, so it is a certain leak.
+    assert "殘留未遮罩ID(檢查碼有效)" in residue_check(store, "身分證 A123456789")
+
+
+def test_residue_check_grades_a_checksum_failing_id_as_suspect(store):
+    # Still reported — the checksum grades, it never excuses.
+    assert "殘留疑似ID(檢查碼無效)" in residue_check(store, "身分證 A123456780")
+
+
+def test_residue_check_catches_lowercase_and_old_arc(store):
+    assert "殘留疑似ID(檢查碼無效)" in residue_check(store, "id a123456780")
+    assert "殘留疑似居留證號" in residue_check(store, "證號 AB12345678")
 
 
 def test_residue_check_catches_a_name_glued_to_a_masked_id(store):

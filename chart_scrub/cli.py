@@ -10,7 +10,10 @@
 terminal. Do not run it through an AI assistant, and do not paste its output
 anywhere.
 
-Exit codes: 0 success, 2 residue check failed (do not use the output file).
+Exit codes: 0 success, 2 residue check failed (do not use the output file),
+3 masking ran but at least one record carried no recognisable identity — the
+generic rules still applied, but nothing patient-specific was substituted, so
+look at that record yourself before trusting it.
 """
 
 from __future__ import annotations
@@ -22,8 +25,21 @@ import os
 import sys
 
 from .pseudonymize import ingest, process_record, residue_check
-from .rules import deidentify_verbose
+from .rules import RULES, deidentify_verbose
 from .store import DEFAULT_DB, AliasStore
+
+
+def _parse_skip(arg: str | None) -> frozenset[str]:
+    """Turn ``--skip a,b`` into a validated rule-name set."""
+    if not arg:
+        return frozenset()
+    names = {n.strip() for n in arg.split(",") if n.strip()}
+    known = {r.name for r in RULES}
+    unknown = names - known
+    if unknown:
+        sys.exit(f"unknown rule(s) in --skip: {', '.join(sorted(unknown))}\n"
+                 f"available: {', '.join(r.name for r in RULES)}")
+    return frozenset(names)
 
 
 def read_text(path: str) -> str:
@@ -57,7 +73,9 @@ def _load_input(path: str | None) -> str:
 
 # ---------------------------------------------------------------- commands
 def cmd_mask(args: argparse.Namespace) -> int:
-    text, hits = deidentify_verbose(_load_input(args.file), do_normalize=not args.raw)
+    text, hits = deidentify_verbose(
+        _load_input(args.file), do_normalize=not args.raw, skip=_parse_skip(args.skip)
+    )
     sys.stdout.write(text)
     if args.stats:
         total = sum(hits.values())
@@ -71,13 +89,16 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     out_dir = args.out or (os.path.dirname(os.path.abspath(args.file)) if args.file else ".")
     os.makedirs(out_dir, exist_ok=True)
 
+    skip = _parse_skip(args.skip)
     with AliasStore(args.db, prefix=args.prefix) as store:
         if args.mrn or args.name or args.birth:
             # Explicit identity given: treat the input as exactly one record.
-            results = [process_record(store, text, args.mrn, args.name, args.birth)]
+            results = [
+                process_record(store, text, args.mrn, args.name, args.birth, skip=skip)
+            ]
             results[0].leaks = residue_check(store, results[0].text)
         else:
-            results = ingest(store, text)
+            results = ingest(store, text, skip=skip)
 
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         for r in results:
@@ -92,9 +113,10 @@ def cmd_ingest(args: argparse.Namespace) -> int:
             r.path = path
 
     ok = all(r.ok for r in results)
+    unidentified = sum(1 for r in results if not r.identified)
     if args.json:
         print(json.dumps(
-            {"ok": ok, "count": len(results),
+            {"ok": ok, "count": len(results), "unidentified": unidentified,
              "records": [{"alias": r.alias, "age": r.age, "out": r.path,
                           "stats": r.stats, "identified": r.identified,
                           "leaks": r.leaks} for r in results]},
@@ -109,8 +131,13 @@ def cmd_ingest(args: argparse.Namespace) -> int:
             print(f"    -> {os.path.basename(r.path or '')}")
             if r.leaks:
                 print(f"    residue check FAILED: {','.join(r.leaks)} — do not use this file")
-        print("all records passed the residue check" if ok else "residue check failed")
-    return 0 if ok else 2
+        print("known-identifier residue check passed" if ok else "residue check failed")
+        if unidentified:
+            print(f"⚠️ {unidentified} record(s) had no recognisable identity — "
+                  "generic rules ran, but review them yourself")
+    if not ok:
+        return 2
+    return 3 if unidentified else 0
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
@@ -160,6 +187,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--raw", action="store_true",
                    help="skip NFKC normalisation (full-width digits may slip through)")
     p.add_argument("--stats", action="store_true", help="print per-rule hit counts to stderr")
+    p.add_argument("--skip", metavar="RULE[,RULE]",
+                   help="rule names to leave out (you decide which identifiers exist in your world)")
     p.set_defaults(fn=cmd_mask)
 
     p = sub.add_parser("ingest", help="full pseudonymisation pipeline")
@@ -168,6 +197,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--prefix", default="PT", help="alias prefix (default: PT)")
     p.add_argument("--mrn"), p.add_argument("--name"), p.add_argument("--birth")
     p.add_argument("--json", action="store_true")
+    p.add_argument("--skip", metavar="RULE[,RULE]",
+                   help="rule names to leave out of the generic net")
     p.set_defaults(fn=cmd_ingest)
 
     p = sub.add_parser("verify", help="re-run the residue check on finished files")

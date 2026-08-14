@@ -114,6 +114,10 @@
   </div>
 
   <h3>它會遮什麼</h3>
+  <p style="margin:.2rem 0 .8rem;color:var(--muted)">
+    每家醫院會遇到的識別碼不一樣——取消勾選就停用那條規則，結果即時更新。
+    CLI 對應 <code>--skip</code> 參數。
+  </p>
   <ul id="rulelist"></ul>
 
   <h3>它遮不掉什麼（請務必看完）</h3>
@@ -182,8 +186,16 @@ function highlight(s) {
   return escapeHtml(s).replace(/\[[^\]\n]{1,10}\]/g, m => `<mark>${m}</mark>`);
 }
 
+function disabledRules() {
+  const off = new Set();
+  for (const box of document.querySelectorAll('#rulelist input[type=checkbox]')) {
+    if (!box.checked) off.add(box.dataset.rule);
+  }
+  return off;
+}
+
 function run() {
-  const { text, hits } = deidentify($in.value);
+  const { text, hits } = deidentify($in.value, { disabled: disabledRules() });
   $out.innerHTML = highlight(text);
   $hits.innerHTML = Object.entries(hits)
     .map(([k, v]) => `<span class="hit">${k} ×${v}</span>`).join('');
@@ -203,7 +215,9 @@ $demo2.onclick = () => { $in.value = SAMPLES.demo2; markLoaded($demo2); run(); }
 document.getElementById('clear').onclick = () => { $in.value = ''; markLoaded(null); run(); };
 
 document.getElementById('rulelist').innerHTML = RULES
-  .map(r => `<li><code>${r.name}</code> — ${r.description}</li>`).join('');
+  .map(r => `<li><label><input type="checkbox" data-rule="${r.name}" checked> ` +
+            `<code>${r.name}</code> — ${r.description}</label></li>`).join('');
+document.getElementById('rulelist').addEventListener('change', run);
 
 $in.value = SAMPLES.demo1;
 run();

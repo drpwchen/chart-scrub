@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS aliases(
     alias TEXT PRIMARY KEY,
     mrn TEXT UNIQUE,
     created TEXT);
+CREATE TABLE IF NOT EXISTS counters(
+    prefix TEXT PRIMARY KEY,
+    next INTEGER);
 """
 
 
@@ -57,28 +60,79 @@ class AliasStore:
         self.con.close()
 
     # -- aliases ---------------------------------------------------------
+    def _next_number(self) -> int:
+        """Take the next alias number from a counter that only ever goes up.
+
+        ``COUNT(*)+1`` breaks in two quiet ways: two processes can read the
+        same count and collide, and deleting a row hands its number to the
+        next patient — old output files then point their alias at somebody
+        else. A counter row never re-issues a number, whatever happens to
+        the aliases table. Seeded from the highest existing alias so a
+        pre-counter database keeps its sequence.
+        """
+        row = self.con.execute(
+            "SELECT next FROM counters WHERE prefix=?", (self.prefix,)
+        ).fetchone()
+        if row:
+            n = row[0]
+        else:
+            seed = self.con.execute(
+                "SELECT alias FROM aliases WHERE alias LIKE ? ORDER BY LENGTH(alias) DESC, alias DESC LIMIT 1",
+                (f"{self.prefix}-%",),
+            ).fetchone()
+            n = int(seed[0].rsplit("-", 1)[1]) + 1 if seed else 1
+        self.con.execute(
+            "INSERT INTO counters(prefix, next) VALUES(?,?) "
+            "ON CONFLICT(prefix) DO UPDATE SET next=?",
+            (self.prefix, n + 1, n + 1),
+        )
+        return n
+
     def alias_for(self, mrn: str) -> str:
         """Return the stable alias for a chart number, creating it if new."""
         row = self.con.execute("SELECT alias FROM aliases WHERE mrn=?", (mrn,)).fetchone()
         if row:
             return row[0]
-        n = self.con.execute("SELECT COUNT(*) FROM aliases").fetchone()[0] + 1
-        alias = f"{self.prefix}-{n:04d}"
-        self.con.execute(
-            "INSERT INTO aliases(alias, mrn, created) VALUES(?,?,?)",
-            (alias, mrn, datetime.date.today().isoformat()),
-        )
-        self.con.commit()
-        return alias
+        # BEGIN IMMEDIATE takes the write lock up front, so two processes
+        # cannot both read the same counter value before either writes.
+        for attempt in range(5):
+            try:
+                self.con.execute("BEGIN IMMEDIATE")
+                row = self.con.execute(
+                    "SELECT alias FROM aliases WHERE mrn=?", (mrn,)
+                ).fetchone()
+                if row:
+                    self.con.rollback()
+                    return row[0]
+                alias = f"{self.prefix}-{self._next_number():04d}"
+                self.con.execute(
+                    "INSERT INTO aliases(alias, mrn, created) VALUES(?,?,?)",
+                    (alias, mrn, datetime.date.today().isoformat()),
+                )
+                self.con.commit()
+                return alias
+            except sqlite3.OperationalError:
+                self.con.rollback()
+                if attempt == 4:
+                    raise
+        raise AssertionError("unreachable")
 
     def upsert_patient(self, mrn: str, name: str | None, birth: str | None) -> None:
-        """Record what we know, without ever overwriting a known value with None."""
+        """Record what we know, without ever overwriting a known value with None.
+
+        ``first_seen``/``last_seen`` are maintained here; ``visit_count`` and
+        ``last_dx`` are reserved columns that nothing populates yet.
+        """
+        today = datetime.date.today().isoformat()
         self.con.execute(
-            """INSERT INTO patients(mrn, name, birth) VALUES(?,?,?)
+            """INSERT INTO patients(mrn, name, birth, first_seen, last_seen)
+               VALUES(?,?,?,?,?)
                ON CONFLICT(mrn) DO UPDATE SET
                    name = COALESCE(excluded.name, name),
-                   birth = COALESCE(excluded.birth, birth)""",
-            (mrn, name, birth),
+                   birth = COALESCE(excluded.birth, birth),
+                   first_seen = COALESCE(first_seen, excluded.first_seen),
+                   last_seen = excluded.last_seen""",
+            (mrn, name, birth, today, today),
         )
         self.con.commit()
 

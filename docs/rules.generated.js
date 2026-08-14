@@ -6,20 +6,38 @@ export const RULES = [
   {
     name: "mrn",
     description: "Chart/medical record number introduced by a label",
-    pattern: new RegExp("(病歷號碼?|病歷|案號|掛號號?碼?)[\\s:：#]*[A-Z]?\\d{5,10}", "g"),
+    pattern: new RegExp("(病歷號碼?|病歷|案號|掛號號?碼?)[\\s:：#]*[A-Za-z]?\\d{5,}", "g"),
     replacement: "$1[病歷號]",
   },
   {
     name: "roc_id",
     description: "ROC national ID and new-style resident certificate number",
-    pattern: new RegExp("(?<![A-Za-z0-9])[A-Z]\\d{9}(?!\\d)", "g"),
+    pattern: new RegExp("(?<![A-Za-z0-9])[A-Za-z]\\d{9}(?!\\d)", "g"),
     replacement: "[身分證號]",
   },
   {
+    name: "arc_old",
+    description: "Old-style resident certificate number (two letters + 8 digits)",
+    pattern: new RegExp("(?<![A-Za-z0-9])[A-Za-z]{2}\\d{8}(?!\\d)", "g"),
+    replacement: "[居留證號]",
+  },
+  {
+    name: "nhi_card_labelled",
+    description: "NHI card number introduced by a label (健保卡號：…)",
+    pattern: new RegExp("(健保卡號?|卡號)[\\s:：#]*\\d{4}[-\\s]?\\d{4}[-\\s]?\\d{4}(?!\\d)", "g"),
+    replacement: "$1[健保卡號]",
+  },
+  {
     name: "nhi_card",
-    description: "NHI card number when the surrounding text names it",
+    description: "NHI card number when the text after it names it (…健保卡)",
     pattern: new RegExp("(?<![A-Za-z0-9])(?:0{4}|[0-9]{4})-?[0-9]{4}-?[0-9]{4}(?=\\s*(?:健保卡|卡號))", "g"),
     replacement: "[健保卡號]",
+  },
+  {
+    name: "passport",
+    description: "Passport number introduced by a label",
+    pattern: new RegExp("(護照(?:號碼?)?|[Pp]assport(?:\\s*(?:[Nn]o\\.?|[Nn]umber))?)[\\s:：#]*[A-Za-z]{0,3}\\d{4,9}(?![A-Za-z0-9])", "g"),
+    replacement: "$1[護照號]",
   },
   {
     name: "mobile",
@@ -48,19 +66,19 @@ export const RULES = [
   {
     name: "birth_labelled",
     description: "Date of birth introduced by a label",
-    pattern: new RegExp("(生日|出生)[是為:：\\s]*[\\d/年月日號\\s-]{4,12}", "g"),
+    pattern: new RegExp("(生日|出生(?:日期|年月日)?)[是為:：\\s]*[\\d/年月日號\\s-]{4,12}", "g"),
     replacement: "$1[生日]",
   },
   {
     name: "address",
     description: "Full address starting from one of the 22 counties/cities",
-    pattern: new RegExp("(?:臺北市|台北市|新北市|桃園市|臺中市|台中市|臺南市|台南市|高雄市|基隆市|新竹市|新竹縣|嘉義市|嘉義縣|苗栗縣|彰化縣|南投縣|雲林縣|屏東縣|宜蘭縣|花蓮縣|臺東縣|台東縣|澎湖縣|金門縣|連江縣|臺北縣|台北縣|桃園縣|臺中縣|台中縣|臺南縣|台南縣|高雄縣)(?:[一-鿿]{1,3}[區鄉鎮市])?(?:[一-鿿0-9]{0,12}[路街道巷弄](?:[一二三四五六七八九十0-9]{1,3}段)?(?:[0-9之\\-]{1,8}[號巷弄])?(?:[0-9之\\-]{1,6}[樓F])?)?", "g"),
+    pattern: new RegExp("(?:臺北市|台北市|新北市|桃園市|臺中市|台中市|臺南市|台南市|高雄市|基隆市|新竹市|新竹縣|嘉義市|嘉義縣|苗栗縣|彰化縣|南投縣|雲林縣|屏東縣|宜蘭縣|花蓮縣|臺東縣|台東縣|澎湖縣|金門縣|連江縣|臺北縣|台北縣|桃園縣|臺中縣|台中縣|臺南縣|台南縣|高雄縣)(?:[一-鿿]{1,3}[區鄉鎮市])?(?:[一-鿿0-9]{0,12}[路街道巷弄](?:[一二三四五六七八九十0-9]{1,3}段)?(?:[0-9之\\-]{1,8}[號巷弄]){0,3}(?:[0-9之\\-]{1,6}[樓F])?)?", "g"),
     replacement: "[地址]",
   },
   {
     name: "street_number",
     description: "Street address without a county prefix, anchored on a house number",
-    pattern: new RegExp("(^|[，,。；;：:\\s]|住址|地址|住在|居住|位於|住|在)[一-鿿0-9]{2,5}[路街道](?:[一二三四五六七八九十0-9]{1,3}段)?[0-9之\\-]{1,8}[號巷](?:[0-9之\\-]{1,6}[樓F])?", "gm"),
+    pattern: new RegExp("(^|[，,。；;：:\\s]|住址|地址|住在|居住|位於|住|在)[一-鿿0-9]{2,5}[路街道](?:[一二三四五六七八九十0-9]{1,3}段)?(?:[0-9之\\-]{1,8}[號巷弄]){1,3}(?:[0-9之\\-]{1,6}[樓F])?", "gm"),
     replacement: "$1[地址]",
   },
   {
@@ -108,11 +126,13 @@ export function normalize(text) {
     c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
 }
 
-// Mirrors chart_scrub.rules.deidentify_verbose().
-export function deidentify(text, { normalize: doNormalize = true } = {}) {
+// Mirrors chart_scrub.rules.deidentify_verbose(), including its `skip`
+// parameter (here `disabled`, a Set of rule names to leave out).
+export function deidentify(text, { normalize: doNormalize = true, disabled = new Set() } = {}) {
   if (doNormalize) text = normalize(text);
   const hits = {};
   for (const rule of RULES) {
+    if (disabled.has(rule.name)) continue;
     rule.pattern.lastIndex = 0;
     const before = text;
     text = text.replace(rule.pattern, rule.replacement);
