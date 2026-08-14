@@ -79,6 +79,21 @@ class RecordResult:
         return not self.leaks
 
 
+def _id_boundary(identifier: str) -> str:
+    """A pattern matching ``identifier`` only as a whole token.
+
+    A plain string replace is wrong here, and quietly so. Chart number
+    ``1234567`` is a substring of somebody else's national ID ``A123456789``,
+    so replacing it blindly rewrites the middle of that ID into
+    ``APT-000189``: the other person's identifier is now mangled rather than
+    masked, and it no longer looks like an ID, so the residue check that
+    watches for surviving IDs cannot see it either. The same collision can
+    chop a phone number in half and stop the phone rule from matching what is
+    left.
+    """
+    return r"(?<![A-Za-z0-9])" + re.escape(identifier) + r"(?![0-9])"
+
+
 def age_from_birth(birth: str | None, ref: datetime.date | None = None) -> int | None:
     """Age in whole years at ``ref`` (default today), or None if unparseable."""
     try:
@@ -236,7 +251,7 @@ def process_record(
     # 1) Targeted substitution — keeps the reference, drops the identity.
     tag = alias or "[病人]"
     if mrn:
-        text, n = re.subn(re.escape(mrn), tag, text)
+        text, n = re.subn(_id_boundary(mrn), tag, text)
         stats["mrn_to_alias"] = n
     if name:
         text, n = re.subn(re.escape(name), tag, text)
@@ -258,10 +273,14 @@ def process_record(
 
     # 3) Other patients on record who happen to be mentioned here.
     for other_mrn, other_name in store.others(mrn):
-        for needle in (other_name, other_mrn):
-            if needle and needle in text:
-                text = text.replace(needle, store.alias_for(other_mrn))
-                stats["other_patients"] = stats.get("other_patients", 0) + 1
+        other_alias = store.alias_for(other_mrn)
+        if other_name and other_name in text:
+            text = text.replace(other_name, other_alias)
+            stats["other_patients"] = stats.get("other_patients", 0) + 1
+        if other_mrn:
+            text, n = re.subn(_id_boundary(other_mrn), other_alias, text)
+            if n:
+                stats["other_patients"] = stats.get("other_patients", 0) + n
 
     # 4) The generic net, last.
     text = deidentify(text, do_normalize=False)

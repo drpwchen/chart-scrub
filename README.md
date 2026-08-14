@@ -191,13 +191,14 @@ pip install -e ".[dev]"
 pytest
 ```
 
-84 tests. Roughly a third of them assert that something is **not** masked —
+87 tests. Roughly a third of them assert that something is **not** masked —
 an engine that masks everything would pass every positive test and be useless.
 
 The suite has been mutation-verified: reverting each of the load-bearing
 decisions (the whole-input pre-registration pass, the surname anchor on the
-ID+name pattern, the cross-record alias substitution, the address lead-in
-guard, the encoding BOM check) makes it fail.
+ID+name pattern, the token boundary on identifier substitution, the
+cross-record alias substitution, the address lead-in guard, the encoding BOM
+check) makes it fail.
 
 ## Safety notes
 

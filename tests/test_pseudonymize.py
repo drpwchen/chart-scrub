@@ -149,6 +149,40 @@ def test_content_never_enters_the_stats(store):
     assert "王大明" not in blob
 
 
+def test_chart_number_inside_another_id_is_not_chopped(store):
+    # 1234567 is a substring of A123456789. A plain string replace rewrites the
+    # middle of that ID into APT-000189: mangled rather than masked, and no
+    # longer ID-shaped, so the residue check stops seeing it too.
+    text = "病歷號碼：1234567 姓名：王大明\n陪同者 A123456789 李小華"
+    results = ingest(store, text, ref_date=REF)
+    body = results[0].text
+    assert "APT-" not in body, body
+    assert "A123456789" not in body
+    assert "PT-0002" in body   # the companion got their own alias, intact
+
+
+def test_chart_number_inside_a_phone_number_is_not_chopped(store):
+    # 234567 sitting inside 0912345678 would break the phone rule's match.
+    store.alias_for("234567")
+    store.upsert_patient("234567", "王大明", None)
+    r = process_record(store, "病歷號碼：234567 姓名：王大明\n電話 0912345678", ref_date=REF)
+    assert "[電話]" in r.text, r.text
+    assert "0912" not in r.text
+
+
+def test_another_patients_chart_number_is_also_token_bounded(store):
+    # Same collision, different code path: the chart number being substituted
+    # belongs to some OTHER patient on record (2345678), and it sits inside a
+    # third party's ID (A234567890) in this record. Unbounded, that ID becomes
+    # APT-000290 and the ID rule never gets to mask it.
+    store.alias_for("2345678")
+    store.upsert_patient("2345678", "李小華", None)
+    r = process_record(store, "病歷號碼：1111111 姓名：王大明\n轉介單附 A234567890",
+                       ref_date=REF)
+    assert "[身分證號]" in r.text, r.text
+    assert "APT-" not in r.text
+
+
 # ------------------------------------------------------------ batch ingest
 def test_other_patient_mentioned_in_passing_gets_their_own_alias(store):
     text = ("病歷號碼：1111111 姓名：王大明\n"

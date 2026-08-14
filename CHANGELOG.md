@@ -27,7 +27,7 @@ tested, and documented.
 - **Browser demo** (`docs/`): a static page that runs the masking engine
   client-side. Its rule table is generated from the Python one by
   `tools/export_rules_js.py`, and `--check` fails CI when the two drift.
-- **84 tests**, including a Python↔JavaScript parity test over 24 inputs and
+- **87 tests**, including a Python↔JavaScript parity test over 24 inputs and
   a substantial set of negative tests (medical eponyms, bare surnames,
   measurements, punctuation must all survive).
 - **CI**: pytest on Ubuntu and Windows × Python 3.10 and 3.12, rule-table
@@ -59,5 +59,11 @@ tested, and documented.
   number, so `沿著中山路走` survives.
 - Full-width normalisation used NFKC, which also rewrote Chinese full-width
   punctuation into ASCII. Only digits and Latin letters are folded now.
+- Targeted substitution replaced a chart number as a plain string, with no
+  token boundary. Chart number `1234567` is a substring of a companion's
+  national ID `A123456789`, so the ID was rewritten into `APT-000189`: mangled
+  instead of masked, and no longer ID-shaped, which also blinded the residue
+  check that watches for surviving IDs. The same collision can cut a phone
+  number in half and stop the phone rule matching the remainder.
 - The rule engine and the pipeline were coupled through a hard-coded
   `sys.path` insert into another project's directory.
