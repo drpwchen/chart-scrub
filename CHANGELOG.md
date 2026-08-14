@@ -10,11 +10,11 @@ tested, and documented.
 
 ### Added
 
-- **Masking engine** (`clinic_deid/rules.py`): 15 regex rules covering chart
+- **Masking engine** (`clinic_deid/rules.py`): 16 regex rules covering chart
   numbers, ROC national IDs and resident certificate numbers, NHI card
   numbers, mobile and landline numbers, email addresses, dates of birth in
   both ROC and Gregorian form, addresses, and names carrying a title, a role
-  word or an explicit declaration.
+  word, a family relation word or an explicit declaration.
 - **Pseudonymisation pipeline** (`clinic_deid/pseudonymize.py`): stable
   `PT-NNNN` aliases per patient, date of birth converted to age, aliases for
   other patients mentioned in passing, multi-patient splitting on three
@@ -26,7 +26,7 @@ tested, and documented.
 - **Browser demo** (`docs/`): a static page that runs the masking engine
   client-side. Its rule table is generated from the Python one by
   `tools/export_rules_js.py`, and `--check` fails CI when the two drift.
-- **80 tests**, including a Python↔JavaScript parity test over 22 inputs and
+- **82 tests**, including a Python↔JavaScript parity test over 24 inputs and
   a substantial set of negative tests (medical eponyms, bare surnames,
   measurements, punctuation must all survive).
 - **CI**: pytest on Ubuntu and Windows × Python 3.10 and 3.12, rule-table

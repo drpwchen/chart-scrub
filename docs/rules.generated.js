@@ -76,6 +76,12 @@ export const RULES = [
     replacement: "[姓名]",
   },
   {
+    name: "relation_name",
+    description: "Family relation word immediately followed by a name (我太太林美玉)",
+    pattern: new RegExp("(太太|先生|老公|老婆|兒子|女兒|媽媽|爸爸|母親|父親|哥哥|姊姊|姐姐|弟弟|妹妹|孫子|孫女|媳婦|女婿|外甥|姪子|姪女|阿姨|舅舅|叔叔)[陳林黃張李王吳劉蔡楊許鄭謝郭洪曾邱廖賴徐周葉蘇莊呂江何蕭羅高潘簡朱鍾游彭詹胡施沈余盧梁趙顏柯翁魏孫戴范方宋鄧杜傅侯曹薛丁卓阮馬董溫唐藍蔣石古紀姚連馮歐程湯田康姜白汪鄒尤巫鐘黎涂龔嚴韓][一-鿿]{1,2}", "g"),
+    replacement: "$1[姓名]",
+  },
+  {
     name: "declared_name",
     description: "Name introduced by an explicit declaration",
     pattern: new RegExp("(我叫|我是|名字是|姓名[是為:：\\s]|病人叫|他叫|她叫|叫做)\\s*[一-鿿]{2,4}", "g"),

@@ -179,6 +179,18 @@ RULES: list[Rule] = [
         "Full name followed by a form of address (陳小明先生)",
     ),
     Rule(
+        "relation_name",
+        # Family members get named in histories all the time ("我太太林美玉說…").
+        # This rule sits AFTER the title rules on purpose: "他太太黃小姐" is
+        # already "他太太[稱謂]" by the time we get here, so we cannot chop the
+        # 姐 off a form of address and leave "他[姓名]姐" behind.
+        r"(太太|先生|老公|老婆|兒子|女兒|媽媽|爸爸|母親|父親|哥哥|姊姊|姐姐|弟弟|妹妹|"
+        r"孫子|孫女|媳婦|女婿|外甥|姪子|姪女|阿姨|舅舅|叔叔)"
+        r"[" + SURNAMES + r"][一-鿿]{1,2}",
+        r"\1[姓名]",
+        "Family relation word immediately followed by a name (我太太林美玉)",
+    ),
+    Rule(
         "declared_name",
         r"(我叫|我是|名字是|姓名[是為:：\s]|病人叫|他叫|她叫|叫做)\s*[一-鿿]{2,4}",
         r"\1[姓名]",

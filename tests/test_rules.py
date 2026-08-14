@@ -99,6 +99,15 @@ def test_role_word_plus_name_masked():
     assert "陳小明" not in deidentify("病人陳小明主訴右肩痛")
 
 
+def test_family_member_name_masked():
+    assert deidentify("我太太林美玉說我走路都歪一邊") == "我太太[姓名]說我走路都歪一邊"
+
+
+def test_relation_word_before_a_title_is_not_chopped():
+    # "他太太黃小姐" must become "他太太[稱謂]", never "他[姓名]姐".
+    assert deidentify("他太太黃小姐陪同") == "他太太[稱謂]陪同"
+
+
 def test_english_name_after_cue_masked():
     assert deidentify("My name is John Smith.") == "My name is [NAME]."
 

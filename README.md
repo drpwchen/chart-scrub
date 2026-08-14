@@ -38,7 +38,7 @@ in a local SQLite file that never leaves your machine.
 
 ## Two layers
 
-**1. A masking engine** (`clinic_deid/rules.py`) — 15 regex rules for chart
+**1. A masking engine** (`clinic_deid/rules.py`) — 16 regex rules for chart
 numbers, national IDs, phone numbers, email, dates of birth, addresses and
 names. No state, no database, no network. This is what the browser demo runs.
 
@@ -108,8 +108,8 @@ This is the part worth reading twice.
 
 - **Names without a cue are missed.** `小明今天回診` has no title, no role word
   and no self-introduction, so nothing fires. Names are caught when they carry
-  a title (`陳先生`), follow a role word (`病人陳小明`), are declared (`我叫…`),
-  or sit next to a national ID.
+  a title (`陳先生`), follow a role word (`病人陳小明`) or a family relation
+  (`我太太林美玉`), are declared (`我叫…`), or sit next to a national ID.
 - **The surname list holds about 100 surnames.** A rare surname is not
   recognised as a name at all.
 - **Regex only.** No NER model, no dictionary of real names, nothing that
@@ -157,7 +157,7 @@ python tools/export_rules_js.py           # regenerate
 python tools/export_rules_js.py --check   # fail if out of date (CI runs this)
 ```
 
-A test feeds the same 22 inputs to both engines and asserts identical output,
+A test feeds the same 24 inputs to both engines and asserts identical output,
 so the demo cannot quietly drift away from the library.
 
 Two engine differences are handled explicitly: Python's `\d` matches full-width
@@ -171,7 +171,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-80 tests. Roughly a third of them assert that something is **not** masked —
+82 tests. Roughly a third of them assert that something is **not** masked —
 an engine that masks everything would pass every positive test and be useless.
 
 The suite has been mutation-verified: reverting each of the load-bearing

@@ -38,6 +38,8 @@ CASES = [
     "王大明先生今天回診",
     "我叫林志偉",
     "病人陳小明主訴右肩痛",
+    "我太太林美玉說我走路都歪一邊",
+    "他太太黃小姐陪同",
     "My name is John Smith.",
     "McMurray test 陰性，Colles fracture 已癒合，Neer sign 陽性。",
     "皮膚偏黃，白血球正常，江湖傳言不足採信。",
