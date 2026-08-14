@@ -1,13 +1,13 @@
-# clinic-deid
+# chart-scrub
 
-[![CI](https://github.com/drpwchen/clinic-deid/actions/workflows/ci.yml/badge.svg)](https://github.com/drpwchen/clinic-deid/actions/workflows/ci.yml)
+[![CI](https://github.com/drpwchen/chart-scrub/actions/workflows/ci.yml/badge.svg)](https://github.com/drpwchen/chart-scrub/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 
 De-identify Traditional Chinese (Taiwan) clinical text on your own machine,
 before any of it reaches a cloud model.
 
-**[Try the rule engine in your browser →](https://drpwchen.github.io/clinic-deid/)**
+**[Try the rule engine in your browser →](https://drpwchen.github.io/chart-scrub/)**
 Nothing is uploaded; the page runs entirely client-side.
 
 繁體中文版說明 → [README.zh-TW.md](README.zh-TW.md)
@@ -38,11 +38,11 @@ in a local SQLite file that never leaves your machine.
 
 ## Two layers
 
-**1. A masking engine** (`clinic_deid/rules.py`) — 16 regex rules for chart
+**1. A masking engine** (`chart_scrub/rules.py`) — 16 regex rules for chart
 numbers, national IDs, phone numbers, email, dates of birth, addresses and
 names. No state, no database, no network. This is what the browser demo runs.
 
-**2. A pseudonymisation pipeline** (`clinic_deid/pseudonymize.py`) — resolves
+**2. A pseudonymisation pipeline** (`chart_scrub/pseudonymize.py`) — resolves
 who the record is about, swaps that person for a stable alias, turns the date
 of birth into an age, gives every other patient mentioned in passing their own
 alias, then runs the masking engine as a net underneath. Finally it greps its
@@ -55,8 +55,8 @@ or the name is already `[姓名]` and no alias can be attached to it.
 ## Install
 
 ```bash
-git clone https://github.com/drpwchen/clinic-deid
-cd clinic-deid
+git clone https://github.com/drpwchen/chart-scrub
+cd chart-scrub
 pip install -e .
 ```
 
@@ -66,25 +66,25 @@ No dependencies outside the standard library.
 
 ```bash
 # Rules only. No database is created, nothing is stored.
-clinic-deid mask notes.txt
-echo "病人陳小明，電話 0912-345-678" | clinic-deid mask -
+chart-scrub mask notes.txt
+echo "病人陳小明，電話 0912-345-678" | chart-scrub mask -
 
 # Full pipeline. Writes PT-0001_<timestamp>.deid.txt next to the input.
-clinic-deid ingest today.txt
+chart-scrub ingest today.txt
 
 # Several patients in one paste — split on ---, on chart-number lines,
 # or on the ID+name shorthand.
-clinic-deid ingest clinic-list.txt --json
+chart-scrub ingest clinic-list.txt --json
 
 # Re-run the residue check on files you already produced.
-clinic-deid verify *.deid.txt
+chart-scrub verify *.deid.txt
 
 # Aliases and ages only. Safe to show anyone.
-clinic-deid list
+chart-scrub list
 
 # Re-identify. Prints a real name — run it in your own terminal,
 # never through an AI assistant.
-clinic-deid who PT-0001
+chart-scrub who PT-0001
 ```
 
 Exit code `2` means the residue check failed. **Do not use that output file.**
@@ -92,7 +92,7 @@ Exit code `2` means the residue check failed. **Do not use that output file.**
 As a library:
 
 ```python
-from clinic_deid import AliasStore, deidentify, ingest
+from chart_scrub import AliasStore, deidentify, ingest
 
 deidentify("病人陳小明，電話 0912-345-678")
 # '病人[姓名]，電話 [電話]'
@@ -158,8 +158,8 @@ came out of my own outpatient workflow. Yours will differ.
 
 | What | Where |
 | --- | --- |
-| Add or change a masking rule | `RULES` in `clinic_deid/rules.py` |
-| Recognise your record header format | `MRN_HEAD`, `NAME_LABEL` in `clinic_deid/pseudonymize.py` |
+| Add or change a masking rule | `RULES` in `chart_scrub/rules.py` |
+| Recognise your record header format | `MRN_HEAD`, `NAME_LABEL` in `chart_scrub/pseudonymize.py` |
 | Change how records are split apart | `split_records()` |
 | Change the alias format | `AliasStore(prefix=...)` |
 | Add a check before output is trusted | `residue_check()` |
@@ -205,7 +205,7 @@ check) makes it fail.
 - `*.db` and `*.deid.txt` are in `.gitignore`. Keep them there.
 - The alias database is the one file that can undo all of this. Treat it the
   way you treat the source records.
-- `clinic-deid who` prints a real name. That is its whole job. Do not run it
+- `chart-scrub who` prints a real name. That is its whole job. Do not run it
   through an assistant, and do not paste its output anywhere.
 - `ingest` prints statistics and aliases only — never record content — so the
   terminal output is safe to share when you need help debugging.

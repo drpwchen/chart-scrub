@@ -1,10 +1,10 @@
 """Command line interface.
 
-    clinic-deid mask   [FILE]        rules only, no database, prints to stdout
-    clinic-deid ingest FILE          full pipeline, writes .deid.txt files
-    clinic-deid verify FILE...       re-run the residue check on finished files
-    clinic-deid who    PT-0001       re-identify — prints a real name, see below
-    clinic-deid list                 aliases and ages only, safe to show anyone
+    chart-scrub mask   [FILE]        rules only, no database, prints to stdout
+    chart-scrub ingest FILE          full pipeline, writes .deid.txt files
+    chart-scrub verify FILE...       re-run the residue check on finished files
+    chart-scrub who    PT-0001       re-identify — prints a real name, see below
+    chart-scrub list                 aliases and ages only, safe to show anyone
 
 ``who`` is the only command that prints an identifier. Run it in your own
 terminal. Do not run it through an AI assistant, and do not paste its output
@@ -149,7 +149,7 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 # ---------------------------------------------------------------- parser
 def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="clinic-deid", description=__doc__,
+    ap = argparse.ArgumentParser(prog="chart-scrub", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--db", default=DEFAULT_DB,
                     help=f"alias database (default: {DEFAULT_DB})")

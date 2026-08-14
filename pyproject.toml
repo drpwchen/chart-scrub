@@ -3,8 +3,8 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "clinic-deid"
-version = "0.1.0"
+name = "chart-scrub"
+version = "0.2.0"
 description = "Rule-based de-identification and pseudonymisation for Traditional Chinese (Taiwan) clinical text"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,14 +25,14 @@ dependencies = []
 dev = ["pytest>=7"]
 
 [project.urls]
-Homepage = "https://github.com/drpwchen/clinic-deid"
-Demo = "https://drpwchen.github.io/clinic-deid/"
+Homepage = "https://github.com/drpwchen/chart-scrub"
+Demo = "https://drpwchen.github.io/chart-scrub/"
 
 [project.scripts]
-clinic-deid = "clinic_deid.cli:main"
+chart-scrub = "chart_scrub.cli:main"
 
 [tool.setuptools]
-packages = ["clinic_deid"]
+packages = ["chart_scrub"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

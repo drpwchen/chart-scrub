@@ -7,7 +7,7 @@ pass all the positive tests and be useless.
 
 import pytest
 
-from clinic_deid.rules import RULES, deidentify, deidentify_verbose, normalize
+from chart_scrub.rules import RULES, deidentify, deidentify_verbose, normalize
 
 
 # ------------------------------------------------------------ identifiers

@@ -1,9 +1,9 @@
-"""clinic-deid — de-identify Traditional Chinese (Taiwan) clinical text locally.
+"""chart-scrub — de-identify Traditional Chinese (Taiwan) clinical text locally.
 
 Two layers, usable separately:
 
-* :mod:`clinic_deid.rules` — a regex masking engine, no state, no database.
-* :mod:`clinic_deid.pseudonymize` — a pipeline that swaps each patient for a
+* :mod:`chart_scrub.rules` — a regex masking engine, no state, no database.
+* :mod:`chart_scrub.pseudonymize` — a pipeline that swaps each patient for a
   stable alias (PT-0001) and keeps the mapping in a local SQLite file.
 """
 

@@ -1,6 +1,6 @@
 """The pseudonymisation pipeline: real record in, alias-bearing record out.
 
-What this adds on top of :mod:`clinic_deid.rules`:
+What this adds on top of :mod:`chart_scrub.rules`:
 
 1. **Targeted substitution.** The patient's own name and chart number are
    replaced with a stable alias (PT-0001) rather than a generic ``[姓名]``

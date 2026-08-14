@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-from clinic_deid.cli import main
+from chart_scrub.cli import main
 
 RECORD = "病歷號碼：1234567 姓名：王大明 出生：1971/03/05\n主訴：右肩痛三個月。"
 

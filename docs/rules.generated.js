@@ -1,5 +1,5 @@
 // GENERATED FILE — do not edit.
-// Source of truth: clinic_deid/rules.py
+// Source of truth: chart_scrub/rules.py
 // Regenerate: python tools/export_rules_js.py
 
 export const RULES = [
@@ -101,14 +101,14 @@ export const RULES = [
   },
 ];
 
-// Mirrors clinic_deid.rules.normalize(): full-width digits and Latin letters
+// Mirrors chart_scrub.rules.normalize(): full-width digits and Latin letters
 // fold to half-width, punctuation is left alone.
 export function normalize(text) {
   return text.replace(/[０-９Ａ-Ｚａ-ｚ]/g,
     c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
 }
 
-// Mirrors clinic_deid.rules.deidentify_verbose().
+// Mirrors chart_scrub.rules.deidentify_verbose().
 export function deidentify(text, { normalize: doNormalize = true } = {}) {
   if (doNormalize) text = normalize(text);
   const hits = {};

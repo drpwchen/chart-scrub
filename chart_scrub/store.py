@@ -15,7 +15,7 @@ import sqlite3
 
 __all__ = ["AliasStore", "DEFAULT_DB"]
 
-DEFAULT_DB = os.path.join(os.path.expanduser("~"), ".clinic-deid", "aliases.db")
+DEFAULT_DB = os.path.join(os.path.expanduser("~"), ".chart-scrub", "aliases.db")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS patients(

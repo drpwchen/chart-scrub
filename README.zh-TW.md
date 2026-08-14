@@ -1,12 +1,12 @@
-# clinic-deid
+# chart-scrub
 
-[![CI](https://github.com/drpwchen/clinic-deid/actions/workflows/ci.yml/badge.svg)](https://github.com/drpwchen/clinic-deid/actions/workflows/ci.yml)
+[![CI](https://github.com/drpwchen/chart-scrub/actions/workflows/ci.yml/badge.svg)](https://github.com/drpwchen/chart-scrub/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 
 在自己的電腦上，把繁體中文臨床文字的識別資訊拿掉，再決定要不要送給雲端模型。
 
-**[在瀏覽器裡直接試 →](https://drpwchen.github.io/clinic-deid/)**
+**[在瀏覽器裡直接試 →](https://drpwchen.github.io/chart-scrub/)**
 那頁完全在你的瀏覽器裡跑，沒有任何資料上傳。
 
 English → [README.md](README.md)
@@ -36,11 +36,11 @@ English → [README.md](README.md)
 
 ## 兩層
 
-**第一層：遮罩引擎**（`clinic_deid/rules.py`）——16 條規則，處理病歷號、身分證、
+**第一層：遮罩引擎**（`chart_scrub/rules.py`）——16 條規則，處理病歷號、身分證、
 電話、電子郵件、生日、地址、姓名。沒有狀態、沒有資料庫、不連網。瀏覽器 demo 跑的
 就是這一層。
 
-**第二層：假名化管線**（`clinic_deid/pseudonymize.py`）——先判斷這筆是誰的紀錄，
+**第二層：假名化管線**（`chart_scrub/pseudonymize.py`）——先判斷這筆是誰的紀錄，
 把那個人換成固定代號，把生日換算成年齡，順帶提到的其他病人也各自給代號，最後再把
 第一層當成網子鋪在底下。跑完會拿自己知道的每一個識別資訊回頭搜自己的輸出，**只要
 有東西活下來就判定失敗**。
@@ -51,8 +51,8 @@ English → [README.md](README.md)
 ## 安裝
 
 ```bash
-git clone https://github.com/drpwchen/clinic-deid
-cd clinic-deid
+git clone https://github.com/drpwchen/chart-scrub
+cd chart-scrub
 pip install -e .
 ```
 
@@ -62,23 +62,23 @@ pip install -e .
 
 ```bash
 # 只跑規則。不建資料庫，什麼都不留。
-clinic-deid mask notes.txt
-echo "病人陳小明，電話 0912-345-678" | clinic-deid mask -
+chart-scrub mask notes.txt
+echo "病人陳小明，電話 0912-345-678" | chart-scrub mask -
 
 # 完整管線。在輸入檔旁邊產出 PT-0001_<時間>.deid.txt
-clinic-deid ingest today.txt
+chart-scrub ingest today.txt
 
 # 一次貼多個病人——用 --- 分隔、用病歷號那行、或用「身分證+姓名」的寫法都可以切
-clinic-deid ingest clinic-list.txt --json
+chart-scrub ingest clinic-list.txt --json
 
 # 對已經產好的檔案重跑殘留檢查
-clinic-deid verify *.deid.txt
+chart-scrub verify *.deid.txt
 
 # 只列代號和年齡，給誰看都安全
-clinic-deid list
+chart-scrub list
 
 # 反查真名。會印出真實姓名——請在自己的終端機跑，不要透過 AI 助理。
-clinic-deid who PT-0001
+chart-scrub who PT-0001
 ```
 
 離開碼 `2` 代表殘留檢查沒過，**那個輸出檔不要用**。
@@ -86,7 +86,7 @@ clinic-deid who PT-0001
 當函式庫用：
 
 ```python
-from clinic_deid import AliasStore, deidentify, ingest
+from chart_scrub import AliasStore, deidentify, ingest
 
 deidentify("病人陳小明，電話 0912-345-678")
 # '病人[姓名]，電話 [電話]'
@@ -135,8 +135,8 @@ with AliasStore("aliases.db") as store:
 
 | 想改什麼 | 改哪裡 |
 | --- | --- |
-| 新增或修改遮罩規則 | `clinic_deid/rules.py` 的 `RULES` |
-| 讓它認得你的表頭格式 | `clinic_deid/pseudonymize.py` 的 `MRN_HEAD`、`NAME_LABEL` |
+| 新增或修改遮罩規則 | `chart_scrub/rules.py` 的 `RULES` |
+| 讓它認得你的表頭格式 | `chart_scrub/pseudonymize.py` 的 `MRN_HEAD`、`NAME_LABEL` |
 | 改變多病人怎麼切分 | `split_records()` |
 | 改代號格式 | `AliasStore(prefix=...)` |
 | 在輸出前多加一道檢查 | `residue_check()` |
@@ -177,7 +177,7 @@ pytest
 
 - `*.db` 和 `*.deid.txt` 已經在 `.gitignore` 裡，請讓它們留在那裡。
 - 對照資料庫是唯一能把這一切還原的檔案，請用對待原始病歷的方式對待它。
-- `clinic-deid who` 會印出真名，那就是它的用途。不要透過 AI 助理跑它，輸出也不要
+- `chart-scrub who` 會印出真名，那就是它的用途。不要透過 AI 助理跑它，輸出也不要
   貼到任何地方。
 - `ingest` 只印統計和代號、絕不印紀錄內容，所以需要別人幫忙除錯時，終端機輸出可以
   直接貼給對方看。

@@ -7,7 +7,7 @@ import datetime
 
 import pytest
 
-from clinic_deid.pseudonymize import (
+from chart_scrub.pseudonymize import (
     age_from_birth,
     detect_identity,
     ingest,
@@ -15,7 +15,7 @@ from clinic_deid.pseudonymize import (
     residue_check,
     split_records,
 )
-from clinic_deid.store import AliasStore
+from chart_scrub.store import AliasStore
 
 REF = datetime.date(2026, 8, 14)
 

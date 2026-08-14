@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>clinic-deid — 繁體中文臨床文字去識別化</title>
+<title>chart-scrub — 繁體中文臨床文字去識別化</title>
 <meta name="description" content="Rule-based de-identification for Traditional Chinese clinical text. Runs entirely in your browser — nothing is uploaded.">
 <style>
   :root {
@@ -81,7 +81,7 @@
 <body>
 <div class="wrap">
   <span class="badge">全部在你的瀏覽器裡跑，沒有任何資料上傳</span>
-  <h1>clinic-deid</h1>
+  <h1>chart-scrub</h1>
   <p class="sub">
     繁體中文臨床文字的規則式去識別化。左邊貼文字，右邊看遮罩結果。<br>
     Rule-based de-identification for Traditional Chinese clinical text — everything runs client-side.
@@ -90,7 +90,7 @@
   <div class="note">
     <strong>這頁只示範規則引擎。</strong>
     完整版還有「同一個病人跨次就診固定代號」的假名化管線與殘留檢查，那部分需要本機資料庫，
-    請看 <a href="https://github.com/drpwchen/clinic-deid">GitHub repo</a>。<br>
+    請看 <a href="https://github.com/drpwchen/chart-scrub">GitHub repo</a>。<br>
     <strong>你貼進去的文字不會離開這個分頁。</strong>沒有上傳、沒有記錄、沒有追蹤，
     整頁載入完成後就算<strong>把網路斷掉也照樣能用</strong>，不信可以自己試。
   </div>
@@ -141,7 +141,7 @@
   </p>
 
   <footer>
-    <a href="https://github.com/drpwchen/clinic-deid">GitHub</a> ·
+    <a href="https://github.com/drpwchen/chart-scrub">GitHub</a> ·
     MIT License ·
     每家醫院的資料格式都不一樣，這份規則是照我自己的門診格式長出來的——
     請 fork 過去改成你的版本。有建議歡迎開 issue。
@@ -189,10 +189,18 @@ function run() {
     .map(([k, v]) => `<span class="hit">${k} ×${v}</span>`).join('');
 }
 
-$in.addEventListener('input', run);
-document.getElementById('demo1').onclick = () => { $in.value = SAMPLES.demo1; run(); };
-document.getElementById('demo2').onclick = () => { $in.value = SAMPLES.demo2; run(); };
-document.getElementById('clear').onclick = () => { $in.value = ''; run(); };
+const $demo1 = document.getElementById('demo1');
+const $demo2 = document.getElementById('demo2');
+
+// The loaded sample's button carries .primary; hand-edited text carries none.
+function markLoaded(btn) {
+  for (const b of [$demo1, $demo2]) b.classList.toggle('primary', b === btn);
+}
+
+$in.addEventListener('input', () => { markLoaded(null); run(); });
+$demo1.onclick = () => { $in.value = SAMPLES.demo1; markLoaded($demo1); run(); };
+$demo2.onclick = () => { $in.value = SAMPLES.demo2; markLoaded($demo2); run(); };
+document.getElementById('clear').onclick = () => { $in.value = ''; markLoaded(null); run(); };
 
 document.getElementById('rulelist').innerHTML = RULES
   .map(r => `<li><code>${r.name}</code> — ${r.description}</li>`).join('');

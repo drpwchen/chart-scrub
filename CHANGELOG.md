@@ -3,6 +3,25 @@
 All notable changes to this project are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] — 2026-08-14
+
+### Changed
+
+- **Project renamed from `clinic-deid` to `chart-scrub`.** Repository, Python
+  package (`clinic_deid` → `chart_scrub`), CLI name, default database
+  directory (`~/.clinic-deid` → `~/.chart-scrub`) and the demo page URL all
+  follow. GitHub redirects the old repository URL, but the old GitHub Pages
+  demo URL does not redirect.
+  專案改名：repo、Python 套件、CLI、預設資料庫目錄與 demo 網址全部跟著換；
+  舊 repo 網址會自動轉址，舊 demo 網址不會。
+
+### Fixed
+
+- **Demo page: the highlighted sample button now follows your click.** The
+  green highlight was hard-coded to the first sample; loading the second
+  sample never moved it. Hand-editing the input clears the highlight.
+  Demo 頁「載入範例」按鈕的選取顏色現在會跟著點擊移動；手動編輯輸入框會清除選取狀態。
+
 ## [0.1.0] — 2026-08-14
 
 First public release. Extracted from a private clinic workflow, generalised,
@@ -10,19 +29,19 @@ tested, and documented.
 
 ### Added
 
-- **Masking engine** (`clinic_deid/rules.py`): 16 regex rules covering chart
+- **Masking engine** (`chart_scrub/rules.py`): 16 regex rules covering chart
   numbers, ROC national IDs and resident certificate numbers, NHI card
   numbers, mobile and landline numbers, email addresses, dates of birth in
   both ROC and Gregorian form, addresses, and names carrying a title, a role
   word, a family relation word or an explicit declaration. Addresses accept
   the pre-2010 county names as well as the current 22.
-- **Pseudonymisation pipeline** (`clinic_deid/pseudonymize.py`): stable
+- **Pseudonymisation pipeline** (`chart_scrub/pseudonymize.py`): stable
   `PT-NNNN` aliases per patient, date of birth converted to age, aliases for
   other patients mentioned in passing, multi-patient splitting on three
   layers (separator lines, chart-number lines, ID+name shorthand), and a
   residue check that fails the record rather than emitting it.
-- **Local alias store** (`clinic_deid/store.py`): SQLite, git-ignored.
-- **CLI** (`clinic-deid`): `mask`, `ingest`, `verify`, `who`, `list`.
+- **Local alias store** (`chart_scrub/store.py`): SQLite, git-ignored.
+- **CLI** (`chart-scrub`): `mask`, `ingest`, `verify`, `who`, `list`.
   Exit code 2 on a failed residue check.
 - **Browser demo** (`docs/`): a static page that runs the masking engine
   client-side. Its rule table is generated from the Python one by

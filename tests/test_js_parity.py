@@ -16,7 +16,7 @@ import sys
 
 import pytest
 
-from clinic_deid.rules import deidentify
+from chart_scrub.rules import deidentify
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUNNER = os.path.join(ROOT, "tools", "js_deid_runner.mjs")
