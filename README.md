@@ -62,6 +62,12 @@ anything survived.
 Order matters: the targeted substitution has to run before the generic rules,
 or the name is already `[姓名]` and no alias can be attached to it.
 
+The pipeline also runs backwards. `rehydrate()` turns aliases in a piece of
+text back into the names they stand for, so a de-identified note can go out to
+a model and the answer can come back readable. Only aliases return: a date of
+birth became an age, and an age has no way home. See
+[Sending text to a model](#sending-text-to-a-model).
+
 ## Install
 
 ```bash
@@ -95,6 +101,10 @@ chart-scrub list
 # Re-identify. Prints a real name — run it in your own terminal,
 # never through an AI assistant.
 chart-scrub who PT-0001
+
+# Turn aliases in a model's reply back into names. Prints real names,
+# to stdout only — same rule, your own terminal.
+pbpaste | chart-scrub rehydrate -
 ```
 
 Exit code `2` means the residue check failed. **Do not use that output file.**
@@ -114,6 +124,76 @@ with AliasStore("aliases.db") as store:
     for record in ingest(store, open("today.txt", encoding="utf-8").read()):
         print(record.alias, record.age, record.ok)
 ```
+
+## Sending text to a model
+
+The tool was built for text you keep. This section is about text you send: a
+prompt goes to a cloud model, an answer comes back, and nothing identifiable
+crosses the wire either way.
+
+Two shapes, and the difference is worth understanding before picking one.
+
+**Stateless.** `deidentify()` masks identifiers into markers. Nothing is
+stored and nothing comes back — the model's answer talks about `[姓名]`, and so
+do you. No database, no setup, no way to re-identify anything afterwards.
+
+**Reversible.** `process_record()` swaps each patient for a stable alias, and
+`rehydrate()` restores the names in the reply before you read it. The
+conversation reads normally; the provider only ever saw PT-0001.
+
+```python
+from chart_scrub import AliasStore, process_record, rehydrate
+
+with AliasStore("aliases.db") as store:
+    outbound = process_record(store, note).text     # PT-0001, no name, no chart no.
+    reply = call_your_model(outbound)               # provider sees only the alias
+    print(rehydrate(store, reply).text)             # you read a real name
+```
+
+A runnable end-to-end example, including litellm proxy wiring, is in
+[`examples/litellm_callback.py`](examples/litellm_callback.py). It runs against
+a fake model, so `python examples/litellm_callback.py` works with no network
+and no litellm installed.
+
+Three things to get right:
+
+- **The alias database re-identifies everything.** Running reversible mode
+  inside a gateway puts that file wherever the gateway runs. On somebody
+  else's host, the mapping has left your machine and the de-identification is
+  protecting no one. Reversible mode belongs on a workstation.
+- **A shared proxy needs one database per person.** Getting that wrong mixes
+  patients together. The example's litellm hook is stateless only, on purpose.
+- **Restoration is partial by design.** Aliases come back; ages and generic
+  markers do not. The identifiers you never need back never come back.
+
+### Other routes worth knowing about
+
+If your problem is really "intercept every prompt leaving this machine"
+rather than "de-identify a corpus I am going to keep", a DLP layer at the
+gateway may fit better than a CLI. [LiteLLM](https://github.com/BerriAI/litellm)
+with a guardrail plugin such as
+[ceil-dlp](https://github.com/dorcha-inc/ceil-dlp) covers that shape, and
+ceil-dlp's *whistledown* mode — reversible masking that restores values in the
+reply, from [this paper](https://arxiv.org/abs/2511.13319) — is the idea
+`rehydrate()` above borrows from. Credit where it is due.
+
+Two differences to weigh:
+
+- **Language.** ceil-dlp's detection stack is English: spaCy `en_core_web_lg`,
+  `dslim/bert-base-NER` trained on CoNLL-2003, and GLiNER
+  `gliner_multi_pii-v1`, which is fine-tuned on English, French, German,
+  Spanish, Italian and Portuguese. Chinese is not among them, and none of the
+  three knows a Taiwanese chart number, NHI card number or national ID
+  checksum. chart-scrub exists because that gap is the whole job here.
+- **Model versus rule.** An NER ensemble generalises to phrasings a regex
+  never anticipated, and misses in ways you cannot enumerate or test. Rules do
+  the opposite: they miss what nobody wrote a rule for, but the same input
+  always produces the same output, which is what makes a residue check and a
+  test suite mean anything. For text you file and may have to defend later,
+  that trade leans one way. For a prompt in flight, it may lean the other.
+
+They are not mutually exclusive. Use whichever matches what happens to the
+text afterwards.
 
 ## Known limitations
 

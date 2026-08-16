@@ -3,6 +3,60 @@
 All notable changes to this project are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] — 2026-08-16
+
+The pipeline learned to run backwards. Prompted by a reader who pointed at
+LiteLLM + [ceil-dlp](https://github.com/dorcha-inc/ceil-dlp) and its
+*whistledown* mode ([paper](https://arxiv.org/abs/2511.13319)) — reversible
+masking that restores values in the model's reply. That idea was missing here,
+and it is borrowed with credit.
+
+### Added
+
+- **`rehydrate()` — aliases back into names.** The reverse of the targeted
+  substitution, for text that went out to a model and came back still talking
+  about PT-0001. Reports what it could not restore rather than guessing:
+  `unknown` for aliases this database never issued, `nameless` for aliases it
+  issued but holds no name for. Only aliases return — a date of birth became
+  an age, and an age has no way home.
+  `rehydrate()` 把代號換回真名；還原不了的據實回報，不猜。
+- **`chart-scrub rehydrate [FILE]`.** Prints to stdout and has no option to
+  write a file, on purpose: the output is identifiable again and should not
+  end up next to the de-identified corpus. `--with-chart` appends the chart
+  number.
+  新增 `rehydrate` 子命令，只印到 stdout、刻意不提供寫檔選項。
+- **`AliasStore.alias_map()` and `AliasStore.prefixes()`** — the whole mapping
+  and every prefix ever issued, in one query each, because re-identifying a
+  body of text has to scan it exactly once.
+- **`examples/litellm_callback.py`** — a runnable example of using chart-scrub
+  as an interception layer in front of a language model, in both stateless and
+  reversible modes, plus litellm proxy wiring. It runs against a fake model,
+  so it works with no network and without litellm installed. CI runs it.
+  新增 litellm 攔截層範例，可直接執行、CI 會跑。
+- **README: "Sending text to a model"**, including an honest comparison with
+  the LiteLLM + ceil-dlp route and when to prefer it.
+  README 新增「把文字送給模型」一節，含與 ceil-dlp 路線的比較。
+
+### Fixed
+
+- **`__version__` was stuck at `0.1.0`** while `pyproject.toml` said `0.3.0`.
+  Both now read `0.4.0`.
+  套件版本號與 pyproject 不一致，已同步。
+
+### Notes
+
+- 18 new tests for the reverse direction, 6 for the example, 134 total.
+  Six mutations were injected and all six were caught: dropping the
+  case-insensitive flag, replacing the single scan with an alias-by-alias
+  loop, dropping the leading token boundary, accepting any prefix shape,
+  restoring a nameless alias as the string `None`, and reporting duplicate
+  unknown aliases.
+- A seventh mutation survived and led to a code change instead of a new test:
+  a trailing `(?![0-9])` in the alias pattern was unreachable, because the
+  greedy digit run already consumes every digit. It was removed rather than
+  covered — a guard that can never fire reads as protection and is not.
+  第七個變異存活，結論是那段防護本來就永遠為真，直接移除而不是補測試。
+
 ## [0.3.0] — 2026-08-14
 
 Findings from an external design review (Codex, gpt-5.6-luna) plus our own

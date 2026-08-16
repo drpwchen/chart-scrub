@@ -164,6 +164,37 @@ class AliasStore:
             (alias.upper(),),
         ).fetchone()
 
+    def alias_map(self) -> dict[str, tuple[str, str | None]]:
+        """``alias -> (mrn, name)`` for every alias on record.
+
+        The whole table at once, because re-identifying a body of text has to
+        scan it a single time — see :func:`chart_scrub.pseudonymize.rehydrate`
+        for why looping one alias at a time is wrong.
+        """
+        return {
+            alias: (mrn, name)
+            for alias, mrn, name in self.con.execute(
+                """SELECT a.alias, a.mrn, p.name FROM aliases a
+                   LEFT JOIN patients p ON a.mrn = p.mrn"""
+            )
+        }
+
+    def prefixes(self) -> list[str]:
+        """Every alias prefix this database has ever issued.
+
+        Read from the counters table, plus this connection's own prefix, plus
+        whatever the existing aliases start with — a database written before
+        the counters table existed has aliases but no counter row.
+        """
+        seen = {self.prefix}
+        seen.update(
+            p for (p,) in self.con.execute("SELECT prefix FROM counters") if p
+        )
+        for (alias,) in self.con.execute("SELECT alias FROM aliases"):
+            if "-" in alias:
+                seen.add(alias.rsplit("-", 1)[0])
+        return sorted(seen)
+
     def roster(self) -> list[tuple[str, str | None]]:
         """Every ``(alias, birth)`` — safe to print, holds no identifiers."""
         return list(

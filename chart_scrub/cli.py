@@ -3,12 +3,15 @@
     chart-scrub mask   [FILE]        rules only, no database, prints to stdout
     chart-scrub ingest FILE          full pipeline, writes .deid.txt files
     chart-scrub verify FILE...       re-run the residue check on finished files
+    chart-scrub rehydrate [FILE]     aliases back to names — prints names, see below
     chart-scrub who    PT-0001       re-identify — prints a real name, see below
     chart-scrub list                 aliases and ages only, safe to show anyone
 
-``who`` is the only command that prints an identifier. Run it in your own
-terminal. Do not run it through an AI assistant, and do not paste its output
-anywhere.
+``who`` and ``rehydrate`` are the two commands that print identifiers. Run
+them in your own terminal. Do not run them through an AI assistant, and do not
+paste their output anywhere. ``rehydrate`` writes to stdout and has no option
+to write a file, on purpose: its output is identifiable again, and it should
+not end up sitting next to the de-identified corpus.
 
 Exit codes: 0 success, 2 residue check failed (do not use the output file),
 3 masking ran but at least one record carried no recognisable identity — the
@@ -24,7 +27,7 @@ import json
 import os
 import sys
 
-from .pseudonymize import ingest, process_record, residue_check
+from .pseudonymize import ingest, process_record, rehydrate, residue_check
 from .rules import RULES, deidentify_verbose
 from .store import DEFAULT_DB, AliasStore
 
@@ -153,6 +156,23 @@ def cmd_verify(args: argparse.Namespace) -> int:
     return 0 if ok else 2
 
 
+def cmd_rehydrate(args: argparse.Namespace) -> int:
+    """Aliases back to names. Prints to stdout only — never writes a file."""
+    with AliasStore(args.db, prefix=args.prefix) as store:
+        result = rehydrate(store, _load_input(args.file), with_mrn=args.with_chart)
+    sys.stdout.write(result.text)
+    if result.unknown:
+        print(f"\n⚠️ not in this database, left as-is: {', '.join(result.unknown)}",
+              file=sys.stderr)
+    if result.nameless:
+        print(f"\n⚠️ on record but no name stored, left as-is: "
+              f"{', '.join(result.nameless)}", file=sys.stderr)
+    if not result.resolved and not result.unknown and not result.nameless:
+        print("\n⚠️ no aliases found in the input — nothing to restore",
+              file=sys.stderr)
+    return 0
+
+
 def cmd_who(args: argparse.Namespace) -> int:
     with AliasStore(args.db) as store:
         row = store.resolve(args.alias)
@@ -205,6 +225,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("files", nargs="+")
     p.add_argument("--quiet", action="store_true", help="only print failures")
     p.set_defaults(fn=cmd_verify)
+
+    p = sub.add_parser(
+        "rehydrate",
+        help="turn aliases in a reply back into names (prints real names)")
+    p.add_argument("file", nargs="?", help="input file, or - for stdin")
+    p.add_argument("--prefix", default="PT", help="alias prefix (default: PT)")
+    p.add_argument("--with-chart", action="store_true",
+                   help="also print the chart number after each name")
+    p.set_defaults(fn=cmd_rehydrate)
 
     p = sub.add_parser("who", help="re-identify an alias (prints a real name)")
     p.add_argument("alias")

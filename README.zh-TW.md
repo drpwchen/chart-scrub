@@ -54,6 +54,10 @@ English → [README.md](README.md)
 順序是有意義的：定向抽換一定要在通用規則之前跑，否則姓名已經變成 `[姓名]`，代號就
 接不上去了。
 
+管線也可以反著跑。`rehydrate()` 把一段文字裡的代號換回它代表的真名，所以去識別化過的
+紀錄可以送去給模型，回來的答案再還原成看得懂的樣子。只有代號回得來：生日已經變成
+年齡，年齡沒有路回去。詳見[把文字送給模型](#把文字送給模型)。
+
 ## 安裝
 
 ```bash
@@ -85,6 +89,10 @@ chart-scrub list
 
 # 反查真名。會印出真實姓名——請在自己的終端機跑，不要透過 AI 助理。
 chart-scrub who PT-0001
+
+# 把模型回覆裡的代號換回真名。會印出真實姓名，而且只印到 stdout——
+# 一樣的規矩，請在自己的終端機跑。
+pbpaste | chart-scrub rehydrate -
 ```
 
 離開碼 `2` 代表殘留檢查沒過，**那個輸出檔不要用**。離開碼 `3` 代表遮罩有跑完，
@@ -103,6 +111,65 @@ with AliasStore("aliases.db") as store:
     for record in ingest(store, open("today.txt", encoding="utf-8").read()):
         print(record.alias, record.age, record.ok)
 ```
+
+## 把文字送給模型
+
+這個工具本來是為了「要留下來的文字」做的。這一節講的是另一件事：要送出去的文字——
+prompt 送去雲端模型、答案回來，來回兩個方向都不讓可識別的東西過線。
+
+有兩種做法，選之前值得先弄清楚差別。
+
+**無狀態。** `deidentify()` 把識別資訊換成標記。什麼都不存，也什麼都回不來——模型的
+答案講的是 `[姓名]`，你讀到的也是 `[姓名]`。不用資料庫、不用設定，事後也沒有任何辦法
+還原。
+
+**可還原。** `process_record()` 把每個病人換成固定代號，`rehydrate()` 在你讀到之前把
+回覆裡的代號換回真名。對話讀起來完全正常，但供應商從頭到尾只看到 PT-0001。
+
+```python
+from chart_scrub import AliasStore, process_record, rehydrate
+
+with AliasStore("aliases.db") as store:
+    outbound = process_record(store, note).text     # 只剩 PT-0001，沒有姓名和病歷號
+    reply = call_your_model(outbound)               # 供應商只看得到代號
+    print(rehydrate(store, reply).text)             # 你讀到的是真名
+```
+
+可以直接跑的完整範例（含 litellm proxy 接法）在
+[`examples/litellm_callback.py`](examples/litellm_callback.py)。它跑的是假模型，所以
+`python examples/litellm_callback.py` 不需要網路、也不需要裝 litellm。
+
+有三件事要弄對：
+
+- **代號資料庫可以還原一切。** 把可還原模式放進 gateway 跑，那個檔案就會待在 gateway
+  所在的機器上。如果那是別人的主機，對照表已經離開你的電腦，去識別化就沒有在保護任何人。
+  可還原模式應該留在自己的工作機。
+- **多人共用的 proxy 需要每人一份資料庫。** 這件事做錯會把病人混在一起。範例裡的
+  litellm hook 只提供無狀態模式，是刻意的。
+- **還原本來就是不完整的。** 代號回得來，年齡和通用標記回不來。那些你本來就不需要拿回來
+  的識別資訊，就是永遠不會回來。
+
+### 其他路線
+
+如果你的問題其實是「攔住每一個離開這台機器的 prompt」，而不是「把要留存的資料去識別化」，
+那 gateway 上的 DLP 層可能比 CLI 更合適。[LiteLLM](https://github.com/BerriAI/litellm)
+搭配 [ceil-dlp](https://github.com/dorcha-inc/ceil-dlp) 這類 guardrail plugin 走的就是
+這條路；而 ceil-dlp 的 *whistledown* 模式——可逆遮罩、在回覆裡把值還原回去，出自
+[這篇論文](https://arxiv.org/abs/2511.13319)——正是上面 `rehydrate()` 借鏡的來源。
+該給的功勞要給。
+
+兩個要權衡的差別：
+
+- **語言。** ceil-dlp 的偵測層是英文的：spaCy `en_core_web_lg`、在 CoNLL-2003 上訓練的
+  `dslim/bert-base-NER`、以及 GLiNER `gliner_multi_pii-v1`（fine-tune 過英、法、德、西、
+  義、葡六種語言）。中文不在其中，而且這三個都不認識台灣的病歷號、健保卡號和身分證
+  檢查碼。chart-scrub 存在的理由就是這個缺口。
+- **模型 vs 規則。** NER ensemble 能推廣到正則沒預料到的寫法，但它漏掉的東西你既列不
+  出來也測不到。規則剛好相反：沒人寫過的規則就漏，但同樣的輸入永遠得到同樣的輸出——
+  正是這一點才讓殘留檢查和測試套件有意義。對於要歸檔、日後可能要交代的文字，這個取捨
+  偏向一邊；對於正在飛的 prompt，可能偏向另一邊。
+
+兩者不互斥。看文字之後會發生什麼事，選對應的那個。
 
 ## 它抓不到什麼（這段請看兩遍）
 

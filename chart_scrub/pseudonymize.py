@@ -30,12 +30,14 @@ from .store import AliasStore
 
 __all__ = [
     "RecordResult",
+    "RehydrateResult",
     "age_from_birth",
     "detect_identity",
     "split_records",
     "process_record",
     "ingest",
     "residue_check",
+    "rehydrate",
 ]
 
 # A chart number introduced by a label. Also used as a record separator.
@@ -80,6 +82,21 @@ class RecordResult:
     @property
     def ok(self) -> bool:
         return not self.leaks
+
+
+@dataclass
+class RehydrateResult:
+    """Aliases turned back into names, and what could not be turned back."""
+
+    text: str
+    resolved: dict[str, str] = field(default_factory=dict)
+    unknown: list[str] = field(default_factory=list)
+    nameless: list[str] = field(default_factory=list)
+
+    @property
+    def complete(self) -> bool:
+        """True when every alias in the text was restored to a name."""
+        return not self.unknown and not self.nameless
 
 
 def _id_boundary(identifier: str) -> str:
@@ -348,3 +365,80 @@ def ingest(
     for r in results:
         r.leaks = residue_check(store, r.text)
     return results
+
+
+def rehydrate(
+    store: AliasStore, text: str, *, with_mrn: bool = False
+) -> RehydrateResult:
+    """Turn aliases in ``text`` back into the names they stand for.
+
+    The reverse of the substitution :func:`process_record` performs, for the
+    case where de-identified text went somewhere else — a cloud model, a
+    colleague's summary — and the answer comes back still talking about
+    PT-0001. Restoring the names makes that answer readable without the
+    original ever having left the machine.
+
+    Three things to know before using it.
+
+    **The output is identifiable.** Whatever this returns is PHI again. It
+    belongs on a screen, not in a file the de-identified corpus lives next to.
+
+    **Only aliases come back.** A date of birth was turned into an age, and an
+    age cannot become a birthday again; the generic rules replaced everything
+    else with markers that carry no way home. Restoration is partial by
+    construction, and that is the design, not a gap.
+
+    **One pass, not one loop.** Replacing alias by alias in a loop is wrong in
+    the same quiet way a plain string replace was wrong in the other
+    direction: ``PT-1`` is a prefix of ``PT-10``, so the shorter alias
+    rewrites the longer one into ``王小明0``. A single scan that decides each
+    match on its own cannot make that mistake. Recognised prefixes come from
+    the store, so ``COVID-19`` and ``L4-5`` are never candidates.
+
+    Unresolvable aliases are left exactly as they are and reported instead:
+    ``unknown`` for ones this database has never issued, ``nameless`` for ones
+    it issued but holds no name for.
+    """
+    mapping = store.alias_map()
+    prefixes = store.prefixes()
+    if not prefixes:
+        return RehydrateResult(text=text)
+
+    # The digit run is greedy, so PT-00011 matches whole and simply misses the
+    # table — no trailing guard is needed, and adding one would only look like
+    # protection. The leading guard is doing real work: without it XPT-0001
+    # yields a match starting mid-token.
+    #
+    # Case-insensitive to match ``who``, which accepts a lowercase alias
+    # because that is what people actually type.
+    pattern = re.compile(
+        r"(?<![A-Za-z0-9])(?:"
+        + "|".join(re.escape(p) for p in prefixes)
+        + r")-\d+",
+        re.IGNORECASE,
+    )
+    resolved: dict[str, str] = {}
+    unknown: list[str] = []
+    nameless: list[str] = []
+
+    def swap(m: re.Match[str]) -> str:
+        alias = m.group()
+        entry = mapping.get(alias) or mapping.get(alias.upper())
+        if entry is None:
+            unknown.append(alias)
+            return alias
+        mrn, name = entry
+        if not name:
+            nameless.append(alias)
+            return alias
+        out = f"{name}（病歷號 {mrn}）" if with_mrn else name
+        resolved[alias] = out
+        return out
+
+    body = pattern.sub(swap, text)
+    return RehydrateResult(
+        text=body,
+        resolved=resolved,
+        unknown=list(dict.fromkeys(unknown)),
+        nameless=list(dict.fromkeys(nameless)),
+    )
