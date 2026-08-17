@@ -43,7 +43,14 @@ __all__ = [
 # A chart number introduced by a label. Also used as a record separator.
 # Unbounded digit run for the same reason as the mrn rule: a cap would grab
 # a partial number and leave the tail exposed.
-MRN_HEAD = re.compile(r"(?:病歷號碼?|案號)[\s:：#]*([A-Za-z]?\d{5,})")
+#
+# Bilingual, but narrower than the mrn masking rule: this pattern also decides
+# where one record ends and the next begins, and a false split is costlier
+# than a missed label (the masking rule still runs either way).
+MRN_HEAD = re.compile(
+    r"(?:病歷號碼?|案號|\bchart\s*no\.?|\bMRN\s*#?)[\s:：#]*([A-Za-z]?\d{5,})",
+    re.IGNORECASE,
+)
 
 # Hand-typed clinic shorthand: a national ID (1 letter + 9 digits) sitting
 # right next to a Chinese name, in either order.
@@ -59,7 +66,17 @@ ID_NAME = re.compile(
 
 NAME_LABEL = re.compile(r"姓\s*名[\s:：]*([" + SURNAMES + r"][一-鿿]{1,3})")
 
-_BIRTH_LABEL = r"(?:出生(?:日期|年月日)?|生日)"
+# Romanised name after an English label, the way HIS printouts write it:
+# "Name: WANG, TA-MING" / "Name: Chen Mei-Ling". Same shape as the
+# english_name masking rule; case-sensitive on the name for the same reason.
+NAME_LABEL_EN = re.compile(
+    r"\b(?:[Nn]ame|NAME)\s*[:：]\s*"
+    r"([A-Z][A-Za-z]+"
+    r"(?:,?[ ]+(?!(?:DOB|MRN|ID|No|Sex|Age|Chart|Birth|Date|Tel|Phone)\b)"
+    r"[A-Z][A-Za-z]+|-[A-Za-z]+){0,3})"
+)
+
+_BIRTH_LABEL = r"(?:出生(?:日期|年月日)?|生日|DOB|[Dd]ate\s+of\s+[Bb]irth|[Bb]irth\s?[Dd]ate)"
 BIRTH_AD = re.compile(_BIRTH_LABEL + r"[\s:：]*(\d{4})[/\-年](\d{1,2})[/\-月](\d{1,2})")
 BIRTH_ROC = re.compile(
     _BIRTH_LABEL + r"[\s:：]*(?:民國)?\s*0?(\d{2,3})[/\-年](\d{1,2})[/\-月]?(\d{1,2})[日]?(?!\d)"
@@ -135,6 +152,10 @@ def detect_identity(text: str) -> tuple[str | None, str | None, str | None]:
     m = NAME_LABEL.search(text)
     if m:
         name = m.group(1)
+    else:
+        m = NAME_LABEL_EN.search(text)
+        if m:
+            name = m.group(1)
 
     if not mrn:
         m = ID_NAME.search(text)
@@ -253,6 +274,7 @@ def process_record(
     *,
     ref_date: datetime.date | None = None,
     skip: frozenset[str] | set[str] = frozenset(),
+    extra_rules: list | tuple = (),
 ) -> RecordResult:
     """De-identify one record. The record's content never enters the result stats.
 
@@ -285,11 +307,23 @@ def process_record(
         text, n = re.subn(_id_boundary(mrn), tag, text)
         stats["mrn_to_alias"] = n
     if name:
-        text, n = re.subn(re.escape(name), tag, text)
-        stats["name_to_alias"] = n
-        if len(name) >= 3:  # given name used on its own, without the surname
-            text, n2 = re.subn(re.escape(name[1:]), tag, text)
-            stats["name_to_alias"] += n2
+        if re.fullmatch(r"[一-鿿]+", name):
+            text, n = re.subn(re.escape(name), tag, text)
+            stats["name_to_alias"] = n
+            if len(name) >= 3:  # given name used on its own, without the surname
+                text, n2 = re.subn(re.escape(name[1:]), tag, text)
+                stats["name_to_alias"] += n2
+        else:
+            # Romanised name. Chopping the first character off ("ANG, TA-MING")
+            # is a Chinese-name trick that must not run here. Instead, match
+            # case-insensitively and let comma/space between words vary:
+            # the header says "WANG, TA-MING", the prose says "Wang Ta-Ming".
+            parts = [p for p in re.split(r"[,\s]+", name) if p]
+            pat = (r"(?<![A-Za-z])"
+                   + r"[,\s]+".join(re.escape(p) for p in parts)
+                   + r"(?![A-Za-z])")
+            text, n = re.subn(pat, tag, text, flags=re.IGNORECASE)
+            stats["name_to_alias"] = n
 
     # 2) Date of birth becomes an age.
     age = age_from_birth(birth, ref_date) if birth else None
@@ -314,7 +348,7 @@ def process_record(
                 stats["other_patients"] = stats.get("other_patients", 0) + n
 
     # 4) The generic net, last.
-    text = deidentify(text, do_normalize=False, skip=skip)
+    text = deidentify(text, do_normalize=False, skip=skip, extra_rules=extra_rules)
 
     header = f"[代號 {alias or '未識別'}" + (f"，{age}歲" if age is not None else "") + "]\n"
     body = header + text
@@ -335,6 +369,7 @@ def ingest(
     *,
     ref_date: datetime.date | None = None,
     skip: frozenset[str] | set[str] = frozenset(),
+    extra_rules: list | tuple = (),
 ) -> list[RecordResult]:
     """De-identify a blob that may hold several patients.
 
@@ -357,7 +392,9 @@ def ingest(
         store.upsert_patient(mrn, name, birth)
 
     results = [
-        process_record(store, chunk, ref_date=ref_date, skip=skip) for chunk in records
+        process_record(store, chunk, ref_date=ref_date, skip=skip,
+                       extra_rules=extra_rules)
+        for chunk in records
     ]
 
     # Second residue sweep: by now every patient in the batch is registered,

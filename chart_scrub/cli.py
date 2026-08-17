@@ -28,7 +28,7 @@ import os
 import sys
 
 from .pseudonymize import ingest, process_record, rehydrate, residue_check
-from .rules import RULES, deidentify_verbose
+from .rules import RULES, audit_numbers, deidentify_verbose, load_rules_file
 from .store import DEFAULT_DB, AliasStore
 
 
@@ -75,15 +75,36 @@ def _load_input(path: str | None) -> str:
 
 
 # ---------------------------------------------------------------- commands
+def _load_extra_rules(arg: str | None) -> list:
+    if not arg:
+        return []
+    try:
+        return load_rules_file(arg)
+    except (OSError, ValueError) as e:
+        sys.exit(str(e))
+
+
 def cmd_mask(args: argparse.Namespace) -> int:
     text, hits = deidentify_verbose(
-        _load_input(args.file), do_normalize=not args.raw, skip=_parse_skip(args.skip)
+        _load_input(args.file), do_normalize=not args.raw, skip=_parse_skip(args.skip),
+        extra_rules=_load_extra_rules(args.rules),
     )
     sys.stdout.write(text)
     if args.stats:
         total = sum(hits.values())
         print(f"\n--- {total} masked: " + ", ".join(f"{k}×{v}" for k, v in hits.items()),
               file=sys.stderr)
+    if args.audit:
+        survivors = audit_numbers(text)
+        if survivors:
+            print("\n--- audit: number-shaped tokens the rules did NOT mask ---",
+                  file=sys.stderr)
+            for tok, n, kind in survivors:
+                print(f"  {tok}  ×{n}  {kind}", file=sys.stderr)
+            print("如果其中某個形狀在你的病歷裡固定是識別碼（例如裸的 8 位病歷號），"
+                  "把它寫進 --rules 的 JSON 檔再跑一次。", file=sys.stderr)
+        else:
+            print("\n--- audit: no number-shaped tokens survived ---", file=sys.stderr)
     return 0
 
 
@@ -93,15 +114,17 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     os.makedirs(out_dir, exist_ok=True)
 
     skip = _parse_skip(args.skip)
+    extra = _load_extra_rules(args.rules)
     with AliasStore(args.db, prefix=args.prefix) as store:
         if args.mrn or args.name or args.birth:
             # Explicit identity given: treat the input as exactly one record.
             results = [
-                process_record(store, text, args.mrn, args.name, args.birth, skip=skip)
+                process_record(store, text, args.mrn, args.name, args.birth,
+                               skip=skip, extra_rules=extra)
             ]
             results[0].leaks = residue_check(store, results[0].text)
         else:
-            results = ingest(store, text, skip=skip)
+            results = ingest(store, text, skip=skip, extra_rules=extra)
 
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         for r in results:
@@ -209,6 +232,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--stats", action="store_true", help="print per-rule hit counts to stderr")
     p.add_argument("--skip", metavar="RULE[,RULE]",
                    help="rule names to leave out (you decide which identifiers exist in your world)")
+    p.add_argument("--rules", metavar="FILE",
+                   help="JSON file of extra rules for your hospital's own formats "
+                        "(run before the built-in table)")
+    p.add_argument("--audit", action="store_true",
+                   help="after masking, list surviving number-shaped tokens to stderr "
+                        "with a guess at what each one is")
     p.set_defaults(fn=cmd_mask)
 
     p = sub.add_parser("ingest", help="full pseudonymisation pipeline")
@@ -219,6 +248,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--json", action="store_true")
     p.add_argument("--skip", metavar="RULE[,RULE]",
                    help="rule names to leave out of the generic net")
+    p.add_argument("--rules", metavar="FILE",
+                   help="JSON file of extra rules for your hospital's own formats")
     p.set_defaults(fn=cmd_ingest)
 
     p = sub.add_parser("verify", help="re-run the residue check on finished files")

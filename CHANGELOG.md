@@ -3,6 +3,59 @@
 All notable changes to this project are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-08-17
+
+Taiwanese charts are written in English. The prose is English, the identity
+block is pasted in from the HIS — sometimes under English labels, more often
+with no label at all. Prompted by a reader asking about an English version:
+the answer is not a translation, it is closing that gap. The label rules go
+bilingual; the unlabelled case — the one that actually dominates a pasted
+SOAP note — gets a discovery loop: audit what survived, write your hospital's
+shapes into a rules file, mask again.
+
+### Added
+
+- **`--rules FILE` — your hospital's own shapes.** A JSON file of extra rules
+  that runs **before** the built-in table, on `mask` and `ingest` and as
+  `extra_rules=` in the library. No generic table can know that a bare
+  8-digit run is always a chart number in *your* charts; this file is where
+  you write that down. Validation is strict: a rule that fails to compile or
+  a colliding name stops the run instead of being silently dropped.
+  新增 `--rules`：把你們醫院自己的識別碼形狀寫成 JSON，跑在內建規則之前；
+  規則寫錯會直接擋下，不會默默漏掉。
+- **`mask --audit` — find out what to write down.** After masking, lists
+  every number-shaped token that survived, with a shape guess: valid national
+  ID checksum, ID shape with a bad checksum, old ARC shape, mobile shape,
+  YYYYMMDD date, or 7-8 digits (the common chart-number length). The audit
+  classifies, the human decides — its output is the input to your rules file.
+  新增 `mask --audit`：列出遮完仍存活的數字串並猜形狀，猜測只供人裁決；
+  audit 的輸出就是 `--rules` 檔的素材。
+- **Bilingual labels.** `Chart No:` / `MRN` / `Case No.` join `病歷號`;
+  `DOB:` / `date of birth` / `birthday` join `生日`; `Name: WANG, TA-MING` /
+  `Name: Chen Mei-Ling` join `姓名` — in the masking rules **and** in
+  `detect_identity()`, so an English-headered record builds its alias and
+  age exactly like a Chinese one. "case"/"record" require an explicit
+  No./number ("in case 123456 patients…" is prose); bare "birth" stays
+  unanchored (birth weight, preterm birth); romanised names still need a cue,
+  so McMurray and Osgood-Schlatter survive.
+  標籤規則雙語化，`detect_identity()` 也認英文表頭——英文病歷一樣建代號、
+  生日一樣轉年齡；醫學人名（eponym）不受影響。
+
+### Fixed
+
+- **Romanised names are no longer first-char-chopped.** The Chinese
+  given-name trick (`name[1:]`) ran on every name; on "Wang Taming" it hunts
+  for "ang Taming", which sits inside *another* person's "Tang Taming" and
+  corrupts it. Romanised names now match case-insensitively with flexible
+  comma/space instead ("WANG, TA-MING" in the header, "Wang Ta-Ming" in the
+  prose, one alias).
+  修正：羅馬拼音姓名不再套用中文的「去姓留名」邏輯，改用不分大小寫、
+  逗號空格互通的比對。
+- **A labelled birthday no longer swallows the line break.**
+  `出生：1971/03/05\n主訴` used to become `出生[生日]主訴` — two lines glued
+  together. The value class now stops at the newline.
+  修正：生日規則不再吃掉換行，`主訴` 不會被黏到上一行。
+
 ## [0.4.0] — 2026-08-16
 
 The pipeline learned to run backwards. Prompted by a reader who pointed at

@@ -26,6 +26,8 @@ __all__ = [
     "deidentify",
     "deidentify_verbose",
     "is_valid_roc_id",
+    "load_rules_file",
+    "audit_numbers",
 ]
 
 # Common Taiwanese surnames (roughly the top 100 by population). Used together
@@ -101,9 +103,20 @@ RULES: list[Rule] = [
         # ten digits of an 11-digit number and leave the tail sitting in the
         # open — a partial mask that nothing downstream can notice. A labelled
         # number is a number; eat all of it.
-        r"(病歷號碼?|病歷|案號|掛號號?碼?)[\s:：#]*[A-Za-z]?\d{5,}",
+        #
+        # Taiwanese charts carry English headers as often as Chinese ones
+        # ("Chart No:", "MRN"), so the label side is bilingual. "case"/"record"
+        # require an explicit No./number — bare "case 12345" is everyday prose
+        # ("in case 12345 patients…"), bare "chart 12345" is not. The leading
+        # \b keeps "flowchart" from donating its tail.
+        r"(病歷號碼?|病歷|案號|掛號號?碼?"
+        r"|\b(?:chart|medical\s+record)\s*(?:no\.?|number|#)?"
+        r"|\b(?:case|record)\s*(?:no\.?|number)"
+        r"|\bMRN\s*#?)"
+        r"[\s:：#]*[A-Za-z]?\d{5,}",
         r"\1[病歷號]",
-        "Chart/medical record number introduced by a label",
+        "Chart/medical record number introduced by a label (病歷號 / Chart No / MRN)",
+        "i",
     ),
     Rule(
         "roc_id",
@@ -177,9 +190,17 @@ RULES: list[Rule] = [
         # 出生日期/出生年月日 are part of the label, not the value — without
         # them in the label the value class (which has no 期) never reaches
         # four characters and the whole date survives.
-        r"(生日|出生(?:日期|年月日)?)[是為:：\s]*[\d/年月日號\s-]{4,12}",
+        #
+        # English labels are anchored: bare "birth" sits in too much clinical
+        # prose (birth weight, preterm birth) to be a date cue on its own.
+        # The value class allows spaces but not newlines — a class with \s
+        # swallowed the line break after the date and glued the next line
+        # onto the label ("出生[生日]主訴").
+        r"(生日|出生(?:日期|年月日)?|\bDOB\b|\bdate\s+of\s+birth|\bbirth\s?da(?:te|y))"
+        r"[是為:：\s]*[\d/年月日號 \t-]{4,12}",
         r"\1[生日]",
-        "Date of birth introduced by a label",
+        "Date of birth introduced by a label (生日 / DOB / date of birth)",
+        "i",
     ),
     Rule(
         "address",
@@ -249,10 +270,23 @@ RULES: list[Rule] = [
     Rule(
         "english_name",
         # Conservative: only after a name cue, so medical eponyms
-        # (McMurray, Colles) are left alone.
-        r"(name is|Mr\.|Mrs\.|Ms\.)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?",
+        # (McMurray, Colles) are left alone. Deliberately case-SENSITIVE:
+        # capitalisation is the signal that separates a name from prose.
+        #
+        # The name shape covers how Taiwanese charts romanise names:
+        # "WANG, TA-MING", "Chen Mei-Ling" — an optional comma between
+        # words and a hyphenated given name. Each continuation word must
+        # start with a capital (or follow a hyphen), so "Name: Wang Ta-Ming
+        # presented with…" stops before "presented".
+        # The continuation excludes the words that follow a name on a chart
+        # header line ("Name: WANG, TA-MING  DOB: …") — without that guard the
+        # next field's label gets swallowed into the name.
+        r"(name is|[Nn]ame\s*[:：]|NAME\s*[:：]|Mr\.|Mrs\.|Ms\.)\s*"
+        r"[A-Z][A-Za-z]+"
+        r"(?:,?\s+(?!(?:DOB|MRN|ID|No|Sex|Age|Chart|Birth|Date|Tel|Phone)\b)"
+        r"[A-Z][A-Za-z]+|-[A-Za-z]+){0,3}",
         r"\1 [NAME]",
-        "English personal name after an explicit cue",
+        "English/romanised personal name after an explicit cue (Name:, Mr., name is)",
     ),
 ]
 
@@ -302,15 +336,76 @@ def is_valid_roc_id(token: str) -> bool:
     return sum(d * w for d, w in zip(digits, weights)) % 10 == 0
 
 
+def load_rules_file(path: str) -> list[Rule]:
+    """Read user-supplied rules from a JSON file.
+
+    Every hospital prints identifiers its own way — most of them without any
+    label at all — and no built-in table can know that an 8-digit run in *your*
+    charts is always a chart number. This file is where you write that down::
+
+        [
+          {
+            "name": "my_mrn",
+            "pattern": "(?<![A-Za-z0-9])\\\\d{8}(?!\\\\d)",
+            "replacement": "[病歷號]",
+            "description": "our charts: bare 8 digits"
+          }
+        ]
+
+    ``description`` and ``flags`` are optional. Validation is strict — a rule
+    that fails to compile, or a name that collides with a built-in rule or
+    another entry, stops the run instead of being silently dropped: a masking
+    pass that quietly loses a rule is worse than one that refuses to start.
+    """
+    import json
+
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        raise ValueError(f"{path}: expected a JSON list of rule objects")
+    builtin = {r.name for r in RULES}
+    seen: set[str] = set()
+    out: list[Rule] = []
+    for i, entry in enumerate(data):
+        if not isinstance(entry, dict):
+            raise ValueError(f"{path}: entry {i} is not an object")
+        missing = {"name", "pattern", "replacement"} - entry.keys()
+        if missing:
+            raise ValueError(f"{path}: entry {i} is missing {sorted(missing)}")
+        name = entry["name"]
+        if name in builtin:
+            raise ValueError(
+                f"{path}: '{name}' collides with a built-in rule — "
+                f"pick another name (and --skip {name} if you mean to replace it)")
+        if name in seen:
+            raise ValueError(f"{path}: duplicate rule name '{name}'")
+        seen.add(name)
+        flags = entry.get("flags", "")
+        unknown_flags = set(flags) - set(_FLAG_MAP)
+        if unknown_flags:
+            raise ValueError(f"{path}: '{name}' has unsupported flags {sorted(unknown_flags)}")
+        rule = Rule(name, entry["pattern"], entry["replacement"],
+                    entry.get("description", ""), flags)
+        try:
+            _compile(rule)
+        except re.error as e:
+            raise ValueError(f"{path}: '{name}' does not compile: {e}") from e
+        out.append(rule)
+    return out
+
+
 def deidentify(
-    text: str, *, do_normalize: bool = True, skip: frozenset[str] | set[str] = frozenset()
+    text: str, *, do_normalize: bool = True, skip: frozenset[str] | set[str] = frozenset(),
+    extra_rules: list[Rule] | tuple[Rule, ...] = (),
 ) -> str:
     """Apply every rule (minus ``skip``) and return the masked text."""
-    return deidentify_verbose(text, do_normalize=do_normalize, skip=skip)[0]
+    return deidentify_verbose(
+        text, do_normalize=do_normalize, skip=skip, extra_rules=extra_rules)[0]
 
 
 def deidentify_verbose(
-    text: str, *, do_normalize: bool = True, skip: frozenset[str] | set[str] = frozenset()
+    text: str, *, do_normalize: bool = True, skip: frozenset[str] | set[str] = frozenset(),
+    extra_rules: list[Rule] | tuple[Rule, ...] = (),
 ) -> tuple[str, dict[str, int]]:
     """Apply every rule, returning ``(masked_text, hits_per_rule)``.
 
@@ -318,17 +413,70 @@ def deidentify_verbose(
     identifiers exist in their world (a clinic that never sees passport
     numbers can drop that rule). Only rules that fired appear in the count
     dict.
+
+    ``extra_rules`` (see :func:`load_rules_file`) run **before** the built-in
+    table: the caller knows their own data format better than we do, so their
+    pattern gets first claim on the text — a bare chart number masked by a
+    custom rule must not be half-eaten by a generic one first.
     """
     if do_normalize:
         text = normalize(text)
     counts: dict[str, int] = {}
-    for rule, pattern in _COMPILED:
+    table = [(r, _compile(r)) for r in extra_rules] + _COMPILED
+    for rule, pattern in table:
         if rule.name in skip:
             continue
         text, n = pattern.subn(rule.replacement, text)
         if n:
             counts[rule.name] = n
     return text, counts
+
+
+# ------------------------------------------------------------------ audit
+# What the audit looks for in *masked* output: any digit run long enough to
+# be an identifier, with up to two leading letters (national ID, old ARC).
+_AUDIT_RUN = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]{0,2}\d{5,}(?![A-Za-z0-9])")
+
+
+def classify_number(token: str) -> str:
+    """Best guess at what a surviving number-shaped token is.
+
+    Classification, not judgement: the audit reports what a shape *could* be
+    so a human can decide, it never decides on its own that something is safe.
+    """
+    if is_valid_roc_id(token):
+        return "確定身分證號（檢查碼有效）"
+    if re.fullmatch(r"[A-Za-z]\d{9}", token):
+        return "疑似身分證號（檢查碼無效）"
+    if re.fullmatch(r"[A-Za-z]{2}\d{8}", token):
+        return "疑似舊式居留證號"
+    if re.fullmatch(r"09\d{8}", token):
+        return "疑似手機號碼"
+    if re.fullmatch(r"(?:19|20)\d{6}", token):
+        m, d = int(token[4:6]), int(token[6:8])
+        if 1 <= m <= 12 and 1 <= d <= 31:
+            return "疑似日期 YYYYMMDD（若為生日應遮蔽）"
+    if re.fullmatch(r"\d{7,8}", token):
+        return "7-8位數（各院病歷號常見長度）"
+    return "未分類數字串"
+
+
+def audit_numbers(text: str) -> list[tuple[str, int, str]]:
+    """Every number-shaped token surviving in ``text``, with a shape guess.
+
+    Run this on already-masked output. Whatever it returns is what the rules
+    did NOT recognise — the working loop is: audit, decide which shapes are
+    identifiers in your hospital's format, write those into a
+    :func:`load_rules_file` JSON, mask again. Sorted by count so the
+    systematic shapes (a chart number on every record) float to the top.
+    """
+    counts: dict[str, int] = {}
+    for m in _AUDIT_RUN.finditer(text):
+        counts[m.group()] = counts.get(m.group(), 0) + 1
+    return sorted(
+        ((tok, n, classify_number(tok)) for tok, n in counts.items()),
+        key=lambda t: (-t[1], t[0]),
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover - manual smoke check

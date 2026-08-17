@@ -41,7 +41,10 @@ in a local SQLite file that never leaves your machine.
 **1. A masking engine** (`chart_scrub/rules.py`) — 19 regex rules for chart
 numbers, national IDs, old-style resident certificate numbers, NHI card
 numbers, passports, phone numbers, email, dates of birth, addresses and
-names. No state, no database, no network. This is what the browser demo runs.
+names. Taiwanese charts are written in English prose with identifiers pasted
+in from the HIS, so the label-driven rules are bilingual: `病歷號` and
+`Chart No:`/`MRN`, `生日` and `DOB:`, `姓名` and `Name: WANG, TA-MING` all
+count. No state, no database, no network. This is what the browser demo runs.
 Every rule can be switched off (`--skip rule,rule` on the CLI, checkboxes in
 the demo) — you know which identifiers exist in your world, the tool doesn't.
 
@@ -251,7 +254,40 @@ The record layouts here — where the chart number sits, whether birthdays are
 written in ROC or Gregorian form, whether you paste one patient or twelve —
 came out of my own outpatient workflow. Yours will differ.
 
-**So fork it and make it yours.** The parts most likely to need editing:
+**Since v0.5.0 you don't have to fork for this.** Most identifiers in a real
+chart carry no label at all — a bare 8-digit run that *your* hospital always
+uses as the chart number looks like any other number to a generic rule table.
+The working loop:
+
+```bash
+# 1. Mask, and list every number-shaped token that survived,
+#    with a guess at what each one is (ID checksum? phone shape?
+#    7-8 digits, the common chart-number length?).
+chart-scrub mask note.txt --audit
+
+# 2. Whatever shape is an identifier in YOUR format, write it down:
+cat > my-hospital.json <<'EOF'
+[
+  {
+    "name": "my_mrn",
+    "pattern": "(?<![A-Za-z0-9])\\d{8}(?!\\d)",
+    "replacement": "[病歷號]",
+    "description": "our charts: bare 8 digits"
+  }
+]
+EOF
+
+# 3. Mask again with your rules — they run before the built-in table.
+chart-scrub mask note.txt --rules my-hospital.json --audit
+```
+
+Repeat until the audit comes back clean or everything left is genuinely not
+an identifier. `ingest` takes `--rules` too, so the same file covers the full
+pipeline. (Custom rules are CLI/library only — the browser demo ships the
+built-in table.)
+
+**For deeper changes, fork it and make it yours.** The parts most likely to
+need editing:
 
 | What | Where |
 | --- | --- |

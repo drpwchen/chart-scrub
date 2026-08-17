@@ -5,8 +5,8 @@
 export const RULES = [
   {
     name: "mrn",
-    description: "Chart/medical record number introduced by a label",
-    pattern: new RegExp("(病歷號碼?|病歷|案號|掛號號?碼?)[\\s:：#]*[A-Za-z]?\\d{5,}", "g"),
+    description: "Chart/medical record number introduced by a label (病歷號 / Chart No / MRN)",
+    pattern: new RegExp("(病歷號碼?|病歷|案號|掛號號?碼?|\\b(?:chart|medical\\s+record)\\s*(?:no\\.?|number|#)?|\\b(?:case|record)\\s*(?:no\\.?|number)|\\bMRN\\s*#?)[\\s:：#]*[A-Za-z]?\\d{5,}", "gi"),
     replacement: "$1[病歷號]",
   },
   {
@@ -65,8 +65,8 @@ export const RULES = [
   },
   {
     name: "birth_labelled",
-    description: "Date of birth introduced by a label",
-    pattern: new RegExp("(生日|出生(?:日期|年月日)?)[是為:：\\s]*[\\d/年月日號\\s-]{4,12}", "g"),
+    description: "Date of birth introduced by a label (生日 / DOB / date of birth)",
+    pattern: new RegExp("(生日|出生(?:日期|年月日)?|\\bDOB\\b|\\bdate\\s+of\\s+birth|\\bbirth\\s?da(?:te|y))[是為:：\\s]*[\\d/年月日號 \\t-]{4,12}", "gi"),
     replacement: "$1[生日]",
   },
   {
@@ -113,8 +113,8 @@ export const RULES = [
   },
   {
     name: "english_name",
-    description: "English personal name after an explicit cue",
-    pattern: new RegExp("(name is|Mr\\.|Mrs\\.|Ms\\.)\\s+[A-Z][a-z]+(?:\\s+[A-Z][a-z]+)?", "g"),
+    description: "English/romanised personal name after an explicit cue (Name:, Mr., name is)",
+    pattern: new RegExp("(name is|[Nn]ame\\s*[:：]|NAME\\s*[:：]|Mr\\.|Mrs\\.|Ms\\.)\\s*[A-Z][A-Za-z]+(?:,?\\s+(?!(?:DOB|MRN|ID|No|Sex|Age|Chart|Birth|Date|Tel|Phone)\\b)[A-Z][A-Za-z]+|-[A-Za-z]+){0,3}", "g"),
     replacement: "$1 [NAME]",
   },
 ];
