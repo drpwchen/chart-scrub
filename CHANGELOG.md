@@ -3,6 +3,46 @@
 All notable changes to this project are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.2] — 2026-08-17
+
+Documentation only. A second pass over the legal section after independent
+re-checking against primary sources; one of the additions changes how the
+tool's own output should be described.
+
+### Changed
+
+- **The legal section now leads with pseudonymisation vs anonymisation.**
+  The alias table is what makes cross-visit reading work, and it is also the
+  key that restores identity — so under 111 年憲判字第 13 號 (reasons ¶35–36,
+  personal data 「客觀上仍有還原而間接識別當事人之可能時」) the masked output
+  is still personal data while you hold the table, and 個資法 still applies.
+  Previously the section only covered re-identification *risk*; this is about
+  the data's legal character, which is a different and more basic point.
+  新增「這個工具做出來的是假名化，不是匿名化」：只要對照表在你手上，
+  遮罩後的文字仍是個人資料，個資法照樣適用。
+- **醫療法 §72／§103 now cited in the text**, not just linked — the duty not
+  to disclose without cause, and the NT$50,000–250,000 fine that falls on the
+  individual as well as the institution.
+- **New source: 醫院個人資料檔案安全維護計畫實施辦法 (L0020218, 111-09-23).**
+  At hospitals of 100 beds or more, staff may not take work documents
+  off-site (§8) and usage/trail logs are kept at least six months (§15) —
+  closer to the actual act of copying records than anything cited before.
+  新增醫院個資安全維護辦法：一百床以上醫院，員工不得攜離工作文件資料。
+- **電子病歷辦法 §8 added** to the outward-transfer bullet: cloud storage of
+  electronic records must sit inside Taiwan absent ministry approval. It
+  binds the institution, not the individual, but it is the one written
+  data-localisation rule and the bullet previously rested only on a judgment
+  and a non-binding guideline.
+- **The MOHW generative-AI guideline is now labelled administrative guidance
+  (行政指導), not a binding rule**, as the guideline itself states. Overstating
+  its force is as inaccurate as understating it.
+- **New closing note on pending changes**: the 2025-11-11 個資法 amendment adds
+  an oversight chapter, rewrites §21 on international transfer and deletes
+  §27 — the authorising provision for L0020218 — and none of it is in force
+  yet. Readers should re-check before relying on the section.
+  新增「正在變動」提示：個資法 2025-11-11 修正尚未施行，且刪除的第 27 條
+  正是醫院個資辦法的授權依據。
+
 ## [0.6.1] — 2026-08-17
 
 Documentation only — but the kind that decides whether the tool gets used
