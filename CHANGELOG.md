@@ -3,6 +3,37 @@
 All notable changes to this project are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.1] — 2026-08-17
+
+Documentation only — but the kind that decides whether the tool gets used
+safely. No code changed.
+
+### Changed
+
+- **The README now says out loud that this is a worked example, not a
+  product.** The intro tells you to treat the repo as a template: audit it
+  against your own hospital's format, adjust the rules, and verify before
+  trusting.
+  README 開頭明說：這是範例實作，請當模板照自己醫院的格式調整。
+- **New section: "Before you feed it real data".** Do not start by dumping a
+  folder into `ingest` — a masking pass that misses your formats fails
+  silently. The section walks the trust ladder: a fake torture sample in
+  your exact format first, audit until clean, then a handful of real records
+  read line by line, and only then scale — re-verifying whenever a form or
+  HIS version changes.
+  新增「餵真資料之前先做這些事」：先用假資料驗證遮得住，逐行讀過才放量。
+- **New section: "The legal side (Taiwan)".** Masking is a technical step;
+  compliance is a separate question, and Taiwan's bar is not the HIPAA
+  checklist. Covers the outcome standard (個資法施行細則 §17), medical
+  records as special-category data (個資法 §6), why batch-pulling records
+  is off the table (電子病歷辦法 §13 audit trails, 刑法 §359), and why
+  de-identification alone does not license sending data outward
+  (憲判字 111-13, MOHW generative-AI guideline 2026-05) — with the local
+  model → in-hospital → external-commercial-last ladder. All sources
+  link to law.moj.gov.tw current versions. Not legal advice.
+  新增「法律面（台灣）」：結果標準而非清單標準、特種個資、不可批次抓病歷、
+  去識別化不是外送免死金牌；出處全連全國法規資料庫現行版本。
+
 ## [0.6.0] — 2026-08-17
 
 Labels turned out to be the wrong assumption. Real pastes are SOAP notes:

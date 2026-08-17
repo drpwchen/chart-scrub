@@ -7,6 +7,14 @@
 De-identify Traditional Chinese (Taiwan) clinical text on your own machine,
 before any of it reaches a cloud model.
 
+**This is a worked example, not a product.** The rules grew out of one
+clinic's paste format — mine. Treat the repo as a template: audit it against
+*your* data format, adjust the rules to what your hospital actually prints
+(see [Every hospital's data looks different](#every-hospitals-data-looks-different)),
+and [verify it masks before you feed it anything real](#before-you-feed-it-real-data).
+Using it also does not settle the [legal side](#the-legal-side-taiwan) —
+masking is a technical step, compliance is a separate question.
+
 **[Try the rule engine in your browser →](https://drpwchen.github.io/chart-scrub/)**
 Nothing is uploaded; the page runs entirely client-side.
 
@@ -307,6 +315,73 @@ need editing:
 
 If you build something better, I would genuinely like to hear about it —
 open an issue.
+
+## Before you feed it real data
+
+Do not start by dumping a folder of records into `ingest`. A masking pass
+that misses your hospital's formats fails **silently** — the output looks
+clean, prints statistics, and still carries identifiers no rule matched.
+Earn trust in this order:
+
+1. **Write a torture sample.** One fake record in exactly your hospital's
+   format — the real header layout, your chart-number shape, a name, an ID,
+   a birthday, a phone number, an address — with every identifier invented.
+   Ten minutes of typing, zero risk.
+2. **Mask it and read every line.** `chart-scrub mask sample.txt --audit`.
+   Anything that survived and shouldn't have → write the shape into your
+   `--rules` file, or fix the rule, and run again until the audit is clean.
+3. **Then a handful of real records, still reading every line yourself.**
+   The residue check and exit codes (`2` = residue found, `3` = record had
+   no recognisable identity) are guard rails, not a replacement for your
+   eyes — they only catch what the store or the shape rules know about.
+4. **Only then scale up** — and keep spot-reading. A new admission form, a
+   new HIS version, a colleague's different paste habit each reintroduce
+   step 1.
+
+The uniqueness problem from [Known limitations](#known-limitations) never
+goes away at any step: a story only one patient can own re-identifies them
+with every string masked, and only the person who knows the story can see it.
+
+## The legal side (Taiwan)
+
+Masking is a technical step. Whether you may collect the text, keep it, or
+send it anywhere is a legal question that this tool does not answer — and in
+Taiwan the bar is **not** the HIPAA checklist. Points worth knowing before
+you build a workflow on this (sources verified against the current versions
+on law.moj.gov.tw, 2026-08; not legal advice):
+
+- **Taiwan has no 18-item safe harbor.** The de-identification standard is
+  個人資料保護法施行細則 §17 — an *outcome* standard (「無從辨識該特定個人」),
+  not a checklist. Deleting all eighteen HIPAA fields does not finish the job
+  here; a rare diagnosis + procedure + month + hospital can re-identify with
+  every listed field gone.
+- **Medical records are special-category data.** 個資法 §6 prohibits
+  collecting, processing and using them in principle; the exceptions must be
+  affirmatively met. The moment "using a record for care" becomes "keeping a
+  pile of records as a dataset", you are in 蒐集 territory and need an
+  answer to which exception applies.
+- **Do not batch-pull records to feed this tool.** Hospitals are required to
+  log every access and copy (醫療機構電子病歷製作及管理辦法 §13), and
+  obtaining records beyond your care relationship can reach 刑法 §359. Same
+  keystrokes, different scope: your own patient for care is authorised;
+  accumulating beyond that is not, even on your own account.
+- **De-identification is not a free pass outward.** The Constitutional Court
+  (111 年憲判字第 13 號, the NHI database case) accepted de-identification
+  only *together with* purpose limits and oversight. The MOHW generative-AI
+  guideline for medical institutions (衛部醫字第 1151663164 號, 2026-05)
+  treats using real patient data in clinical workflow as *deployment* that
+  should go through the institution's process — not personal testing. The
+  sensible ladder: local model first, in-hospital deployment second,
+  external commercial models last and only after checking your hospital's
+  own policy.
+
+Sources: [個資法](https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=I0050021) ·
+[施行細則](https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=I0050022) ·
+[電子病歷辦法](https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=L0020121) ·
+[醫療法](https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=L0020021) ·
+[刑法](https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=C0000001) ·
+[憲判字 111-13](https://cons.judicial.gov.tw/docdata.aspx?fid=38&id=309956) ·
+[衛福部生成式 AI 指引](https://www.mohw.gov.tw/cp-18-86695-1.html)
 
 ## The browser demo
 
