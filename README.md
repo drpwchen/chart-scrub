@@ -38,7 +38,7 @@ in a local SQLite file that never leaves your machine.
 
 ## Two layers
 
-**1. A masking engine** (`chart_scrub/rules.py`) — 19 regex rules for chart
+**1. A masking engine** (`chart_scrub/rules.py`) — 23 regex rules for chart
 numbers, national IDs, old-style resident certificate numbers, NHI card
 numbers, passports, phone numbers, email, dates of birth, addresses and
 names. Taiwanese charts are written in English prose with identifiers pasted
@@ -222,10 +222,14 @@ decision about what to write down, not a processing step you can delegate.
 
 ### The ordinary ones
 
-- **Names without a cue are missed.** `小明今天回診` has no title, no role word
-  and no self-introduction, so nothing fires. Names are caught when they carry
-  a title (`陳先生`), follow a role word (`病人陳小明`) or a family relation
-  (`我太太林美玉`), are declared (`我叫…`), or sit next to a national ID.
+- **Some names still need a cue.** A standalone surname-led CJK token is
+  masked on its own (`Patient 王大明 presented…` — in an English chart that
+  is what a pasted name looks like), and the `NOT_NAMES` stoplist excuses
+  clinical words typed in Chinese (`c/o 高血壓`) — grow that list in
+  `rules.py` as you meet new ones. What still needs a cue: a given name on
+  its own (`小明今天回診` — 小 is not a surname), a rare surname, and a full
+  name buried inside continuous Chinese prose with no title, role word,
+  declaration, or identifier next to it.
 - **The surname list holds about 100 surnames.** A rare surname is not
   recognised as a name at all.
 - **Regex only.** No NER model, no dictionary of real names, nothing that
@@ -233,8 +237,11 @@ decision about what to write down, not a processing step you can delegate.
 - **It over-masks on purpose.** A medical term occasionally gets masked. That
   trade is deliberate: masking one word too many costs you a re-read, leaking
   one name costs a great deal more.
-- **Visit dates are kept.** Clinical reasoning usually needs them. If you need
-  HIPAA safe-harbor date handling, you have to add date shifting yourself.
+- **All full dates are masked, visit dates included.** A pasted date of birth
+  arrives bare, and no rule can tell it from an operation date by shape, so
+  since v0.6.0 every full date becomes `[日期]` (the HIPAA safe-harbor trade).
+  If your workflow needs the timeline, run with `--skip bare_date` — labelled
+  and ROC-calendar birthdays are still caught by their own rules.
 - **The residue check only knows what the store knows.** It catches names and
   chart numbers already on record, plus two shapes of leak (a Chinese name
   glued to a masked ID, an ID-shaped token that survived). A name it has never

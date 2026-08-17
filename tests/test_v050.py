@@ -192,7 +192,10 @@ def test_load_rules_file_rejects_duplicate_names(tmp_path):
 
 # ------------------------------------------------------------- audit
 def test_audit_finds_and_classifies_survivors():
-    masked = deidentify("身分證 A123456789 已遮，病歷號另有 20250731 和 55667788")
+    # bare_date (v0.6.0) would mask the compact date; skipping it here keeps
+    # this test about the audit — a date-shaped survivor must be called out.
+    masked = deidentify("身分證 A123456789 已遮，病歷號另有 20250731 和 55667788",
+                        skip={"bare_date"})
     found = {tok: kind for tok, _, kind in audit_numbers(masked)}
     assert "A123456789" not in found          # masked, so not a survivor
     assert "似日期" in found["20250731"]

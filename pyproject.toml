@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chart-scrub"
-version = "0.5.0"
+version = "0.6.0"
 description = "Rule-based de-identification and pseudonymisation for Traditional Chinese (Taiwan) clinical text"
 readme = "README.md"
 requires-python = ">=3.10"

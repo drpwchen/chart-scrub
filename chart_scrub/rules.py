@@ -53,6 +53,20 @@ COUNTIES = (
     r"臺北縣|台北縣|桃園縣|臺中縣|台中縣|臺南縣|台南縣|高雄縣)"
 )
 
+# Standalone CJK tokens that merely LOOK like a name — clinical and everyday
+# words that start with a common surname character. In an English-language
+# chart (the normal case in Taiwan), an isolated 2-4 character CJK token is
+# usually a pasted patient name; the exceptions are terms the author typed in
+# Chinese because the English word didn't come to mind. Those go here.
+# Grow this list as you meet new ones — a missed entry over-masks one word,
+# which is the direction this tool is allowed to fail in.
+NOT_NAMES = (
+    "高血壓", "高血糖", "高血脂", "高尿酸", "高血鉀", "高血鈉", "高處", "高峰",
+    "白血球", "白血病", "白內障", "白蛋白", "白斑", "白帶", "白天",
+    "黃疸", "黃斑部", "黃斑", "黃連", "黃芩",
+    "石膏", "石頭", "張力", "康復", "陳皮", "溫度", "方向", "方法", "方案",
+)
+
 # Forms of address that mark the preceding characters as a personal name.
 TITLES = r"(?:先生|小姐|太太|女士|阿公|阿嬤|阿伯|阿姨|大哥|大姐|同學|老師|伯伯|奶奶|爺爺)"
 
@@ -203,6 +217,28 @@ RULES: list[Rule] = [
         "i",
     ),
     Rule(
+        "bare_date",
+        # A full date recognised by shape alone, no label needed — a pasted
+        # date of birth usually arrives bare ("1971/03/05"). Masks visit and
+        # exam dates too; that is the deliberate trade (HIPAA safe harbor
+        # masks all dates for the same reason). Skip with --skip bare_date
+        # if your workflow needs the timeline.
+        #
+        # Three guards against clinical numerics: the year segment needs
+        # 2-4 digits, so dosing "1-0-1" and MMT "4/5" never start a match;
+        # the two separators must be the SAME character (backreference), so
+        # electrolyte panels like "140/4.0/100" fall apart at the mixed
+        # separator; the compact form validates month and day, so an 8-digit
+        # chart number like 20259999 is not a date.
+        r"(?<!\d)(?:"
+        r"\d{2,4}([/\-.])\d{1,2}\1\d{1,2}"
+        r"|(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])"
+        r"|(?:19|20)\d{2}\s?年\s?\d{1,2}\s?月\s?\d{1,2}\s?日"
+        r")(?!\d)",
+        "[日期]",
+        "Bare full date by shape (1971/03/05, 19710305, 1971年3月5日)",
+    ),
+    Rule(
         "address",
         COUNTIES
         + r"(?:[一-鿿]{1,3}[區鄉鎮市])?"
@@ -266,6 +302,56 @@ RULES: list[Rule] = [
         r"(病人|患者|個案|案主|家屬)[" + SURNAMES + r"][一-鿿]{1,2}",
         r"\1[姓名]",
         "Role word immediately followed by a full name (病人陳小明)",
+    ),
+    Rule(
+        "cjk_fullname",
+        # A surname-led CJK token standing alone — bounded by non-CJK on both
+        # sides. In an English-language chart that is how a pasted patient
+        # name looks ("Patient 王大明 presented…"), and isolated CJK is rare
+        # enough that the odds favour a name. The NOT_NAMES lookahead excuses
+        # clinical words an author types in Chinese when the English word
+        # won't come ("c/o 高血壓"). Inside continuous Chinese prose the
+        # CJK-boundary guards keep this rule silent — "陳舊性骨折" and
+        # "病人說高血壓很久" are never touched, because the token there has
+        # CJK neighbours.
+        r"(?<![一-鿿])(?!(?:" + "|".join(NOT_NAMES) + r")(?![一-鿿]))"
+        r"[" + SURNAMES + r"][一-鿿]{1,3}(?![一-鿿])",
+        "[姓名]",
+        "Standalone surname-led CJK token (a pasted name in an English chart)",
+    ),
+    Rule(
+        "name_beside_id",
+        # A bare name glued to an identifier — "王大明 A123456789", no label,
+        # no title. By the time this rule runs, the ID is already a marker,
+        # so "a surname-led token touching [身分證號]" is about as strong as
+        # name evidence gets without a cue. Both orders are covered; the
+        # marker-first order needs a capture group because Python has no
+        # variable-length lookbehind.
+        #
+        # This is deliberately NOT a bare standalone-name rule: "高血壓",
+        # "白血球" and "陳舊性" all start with a common surname, and masking
+        # prose that merely looks name-shaped destroys clinical content in
+        # the quiet way nobody notices.
+        r"(?:[" + SURNAMES + r"][一-鿿]{1,3}"
+        r"(?=[ ,，]*\[(?:身分證號|居留證號|病歷號|健保卡號|護照號|生日|電話|日期)\])"
+        r"|(\[(?:身分證號|居留證號|病歷號|健保卡號|護照號|生日|電話|日期)\][ ,，]*)"
+        r"[" + SURNAMES + r"][一-鿿]{1,3})",
+        r"\1[姓名]",
+        "Bare name directly beside an already-masked identifier (王大明 A123456789)",
+    ),
+    Rule(
+        "name_demographics",
+        # A bare name followed by demographics — "王大明 45歲", "王大明，男 45歲",
+        # "王大明 1971/03/05". The date form requires TWO numbers (year and
+        # month): a single "\d+年" would turn "高血壓 20年" into a name hit.
+        # "男性/女性" likewise breaks the sex branch on purpose, so
+        # "高血壓，男性 45歲" survives.
+        r"[" + SURNAMES + r"][一-鿿]{1,3}"
+        r"(?=[ ,，]*(?:(?:[男女][ ,，]*)?\d{1,3}\s*歲"
+        r"|(?:民國)?\d{2,4}[/\-年.]\d{1,2}"
+        r"|[MF]/))",
+        "[姓名]",
+        "Bare name followed by age/sex/birthdate (王大明 45歲)",
     ),
     Rule(
         "english_name",

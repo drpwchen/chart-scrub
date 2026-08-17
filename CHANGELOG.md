@@ -3,6 +3,54 @@
 All notable changes to this project are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] — 2026-08-17
+
+Labels turned out to be the wrong assumption. Real pastes are SOAP notes:
+English prose, identifiers dropped in bare — the national ID just written
+out, the name just sitting there, the birthday with nothing in front of it.
+This release masks by shape and context instead of waiting for a label.
+(Bare national IDs were always shape-matched; what follows closes the name
+and date gaps.)
+
+### Added
+
+- **`cjk_fullname` — a standalone CJK token led by a surname is a name.**
+  In an English-language chart, `Patient 王大明 presented…` is what a pasted
+  name looks like, and isolated CJK is rare enough that the odds favour a
+  name. The `NOT_NAMES` stoplist excuses the words a doctor types in Chinese
+  when the English term won't come (`c/o 高血壓`, `白血球`, `石膏`…) — grow
+  it as you meet new ones. Inside continuous Chinese prose the CJK-boundary
+  guards keep the rule silent: `病人說高血壓很久` and `陳舊性骨折` are never
+  touched.
+  新增：英文病歷裡孤立出現的姓氏開頭中文字串直接視為姓名；
+  想不起英文而打的中文臨床詞由 `NOT_NAMES` 名單放行；連續中文句子不受影響。
+- **`name_beside_id` — a bare name glued to a masked identifier.**
+  `王大明 A123456789` carries no label and no title, but by the time the
+  name rules run the ID is already `[身分證號]`, and a surname-led token
+  touching that marker is as strong as name evidence gets. Both orders work,
+  and the marker set covers ID, ARC, chart number, NHI card, passport,
+  birthday, phone and date.
+  新增：緊貼在已遮罩識別碼旁的裸姓名（兩個方向都認）。
+- **`name_demographics` — a bare name followed by demographics.**
+  `王大明 45歲`, `王大明，男 45歲`, `王大明 1971/03/05`. The date branch
+  requires two numbers, so `高血壓 20年` is not a name; `男性/女性` breaks
+  the sex branch for the same reason.
+  新增：後面跟著年齡／性別／生日的裸姓名。
+- **`bare_date` — full dates masked by shape, no label needed.**
+  `1971/03/05`, `2020-05-03`, `113/05/06`, `19710305`, `1971年3月5日` all
+  become `[日期]`. Visit dates go too — by shape nobody can tell a birthday
+  from an operation date, so the rule takes the HIPAA safe-harbor trade;
+  `--skip bare_date` keeps the timeline. Three guards protect clinical
+  numerics: the year needs 2-4 digits (dosing `1-0-1`, MMT `4/5` never
+  start a match), both separators must be the same character (electrolytes
+  `140/4.0/100` fall apart), and the compact form validates month and day
+  (an 8-digit chart number `20259999` is not a date).
+  新增：完整日期照樣貌遮成 `[日期]`（含就診日期，可用 `--skip bare_date`
+  保留時間軸）；劑量、MMT、電解質等臨床數字有三道防呆不會誤中。
+
+Both READMEs and the demo's limitation list are rewritten to match; the demo
+picked the four rules up automatically through the generated table.
+
 ## [0.5.0] — 2026-08-17
 
 Taiwanese charts are written in English. The prose is English, the identity
