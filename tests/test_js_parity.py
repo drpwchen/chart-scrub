@@ -16,7 +16,7 @@ import sys
 
 import pytest
 
-from chart_scrub.rules import deidentify
+from chart_scrub.rules import audit_numbers, classify_number, deidentify
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUNNER = os.path.join(ROOT, "tools", "js_deid_runner.mjs")
@@ -82,3 +82,32 @@ def test_python_and_javascript_agree():
     assert not mismatches, "\n".join(
         f"input:  {c!r}\npython: {p!r}\njs:     {j!r}" for c, p, j in mismatches
     )
+
+
+# Tokens for classify_number parity and texts for audit_numbers parity —
+# the demo's audit panel must say exactly what the CLI's --audit says.
+TOKENS = [
+    "A123456789", "A123456780", "AB12345678", "0912345678",
+    "20250731", "20251399", "1234567", "123456789012",
+]
+AUDIT_TEXTS = [
+    "x 55667788 y 55667788 z 99999",
+    "身分證 A123456780 未遮，病歷號 20250731",
+]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_audit_and_classify_agree():
+    r = subprocess.run(
+        ["node", RUNNER],
+        input=json.dumps({"tokens": TOKENS, "audits": AUDIT_TEXTS}),
+        capture_output=True, text=True, encoding="utf-8",
+        cwd=os.path.join(ROOT, "tools"),
+    )
+    assert r.returncode == 0, r.stderr
+    js = json.loads(r.stdout)
+    assert js["classified"] == [classify_number(t) for t in TOKENS]
+    py_audits = [
+        [[tok, n, kind] for tok, n, kind in audit_numbers(t)] for t in AUDIT_TEXTS
+    ]
+    assert js["audited"] == py_audits

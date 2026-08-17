@@ -283,8 +283,9 @@ chart-scrub mask note.txt --rules my-hospital.json --audit
 
 Repeat until the audit comes back clean or everything left is genuinely not
 an identifier. `ingest` takes `--rules` too, so the same file covers the full
-pipeline. (Custom rules are CLI/library only — the browser demo ships the
-built-in table.)
+pipeline. The [browser demo](https://drpwchen.github.io/chart-scrub/) runs
+the same loop client-side: an audit panel under the output, and a custom-rules
+box that takes the same JSON as `--rules`.
 
 **For deeper changes, fork it and make it yours.** The parts most likely to
 need editing:

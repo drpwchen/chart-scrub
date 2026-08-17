@@ -98,6 +98,7 @@
   <div class="bar">
     <button class="primary" id="demo1">載入範例：門診紀錄</button>
     <button id="demo2">載入範例：口語轉錄</button>
+    <button id="demo3">載入範例：英文 SOAP</button>
     <button id="clear">清空</button>
   </div>
 
@@ -112,6 +113,22 @@
       <div class="hits" id="hits"></div>
     </div>
   </div>
+
+  <div class="panel" style="margin-top:1rem">
+    <h2>遮完還活著的數字串（對應 CLI 的 <code>mask --audit</code>）</h2>
+    <p style="margin:.2rem 0 .6rem;color:var(--muted);font-size:.9rem">
+      規則沒認出來的數字串會列在這裡，附上形狀猜測——猜測只供你裁決，工具不自己決定什麼是安全的。
+      如果某個形狀在你的病歷裡固定是識別碼（例如裸的 8 位病歷號），把它寫進下面的自訂規則再遮一次。
+    </p>
+    <ul id="audit" style="margin:0;font-size:.9rem"></ul>
+    <p id="audit-empty" style="margin:0;color:var(--muted);font-size:.9rem">目前沒有存活的數字串。</p>
+  </div>
+
+  <details class="panel" style="margin-top:1rem">
+    <summary style="cursor:pointer;font-size:.9rem"><strong>自訂規則</strong>（對應 CLI 的 <code>--rules my-hospital.json</code>）——你們醫院自己的識別碼形狀，跑在內建規則之前</summary>
+    <textarea id="rules" spellcheck="false" style="min-height:140px;margin-top:.6rem"></textarea>
+    <p id="rules-status" style="margin:.4rem 0 0;color:var(--muted);font-size:.85rem"></p>
+  </details>
 
   <h3>它會遮什麼</h3>
   <p style="margin:.2rem 0 .8rem;color:var(--muted)">
@@ -148,16 +165,21 @@
     <a href="https://github.com/drpwchen/chart-scrub">GitHub</a> ·
     MIT License ·
     每家醫院的資料格式都不一樣，這份規則是照我自己的門診格式長出來的——
-    請 fork 過去改成你的版本。有建議歡迎開 issue。
+    自家的識別碼形狀用上面的自訂規則就能補；要改更深的東西請 fork 過去改成你的版本。
+    有建議歡迎開 issue。
   </footer>
 </div>
 
 <script type="module">
-import { RULES, deidentify } from './rules.generated.js';
+import { RULES, auditNumbers, deidentify } from './rules.generated.js';
 
 const $in = document.getElementById('in');
 const $out = document.getElementById('out');
 const $hits = document.getElementById('hits');
+const $audit = document.getElementById('audit');
+const $auditEmpty = document.getElementById('audit-empty');
+const $rules = document.getElementById('rules');
+const $rulesStatus = document.getElementById('rules-status');
 
 const SAMPLES = {
   demo1: `姓名：王大明    病歷號碼：1234567
@@ -175,6 +197,14 @@ McMurray test 陰性（膝，另問）。
 病人：大概半年，我太太林美玉說我走路都歪一邊。
 病人：我兒子小明也有一樣的問題，要不要一起看？
 醫師：我幫你排X光，之後打我的手機0987-654-321也可以。`,
+  demo3: `Chart No: 12345678   Name: WANG, TA-MING   DOB: 1971/03/05
+S: Right shoulder pain for 3 months, night pain (+). Wang Ta-Ming states he
+   visited a tuina parlor last month. Contact: daming@example.com, 0912-345-678.
+O: Neer sign (+), Hawkins-Kennedy (+), empty can test weak on the right.
+   McMurray test negative. ID A123456789 verified at triage.
+A: Rotator cuff tendinopathy, suspect supraspinatus partial tear.
+P: Arrange MSK sonography. Follow up in 2 weeks. Case no 87654321 (brother,
+   seen today as well) — separate note.`,
 };
 
 function escapeHtml(s) {
@@ -194,25 +224,79 @@ function disabledRules() {
   return off;
 }
 
+// Mirrors chart_scrub.rules.load_rules_file(): strict on purpose — a rule
+// that fails to parse is reported and dropped as a whole batch, never
+// silently skipped one by one.
+function parseExtraRules() {
+  const src = $rules.value.trim();
+  if (!src) {
+    $rulesStatus.textContent =
+      '格式：[{"name": "...", "pattern": "...", "replacement": "..."}]，' +
+      'pattern 是 regex，跟 CLI 的 --rules 檔一模一樣。';
+    return [];
+  }
+  try {
+    const data = JSON.parse(src);
+    if (!Array.isArray(data)) throw new Error('最外層要是陣列 []');
+    const builtin = new Set(RULES.map(r => r.name));
+    const seen = new Set();
+    const out = data.map((e, i) => {
+      if (!e || typeof e !== 'object') throw new Error(`第 ${i + 1} 條不是物件`);
+      for (const k of ['name', 'pattern', 'replacement'])
+        if (!(k in e)) throw new Error(`第 ${i + 1} 條缺 "${k}"`);
+      if (builtin.has(e.name)) throw new Error(`"${e.name}" 與內建規則同名`);
+      if (seen.has(e.name)) throw new Error(`"${e.name}" 重複`);
+      seen.add(e.name);
+      return {
+        name: e.name,
+        pattern: new RegExp(e.pattern, 'g' + (e.flags || '')),
+        // The CLI file uses Python backreferences (\1); accept them here too.
+        replacement: e.replacement.replace(/\\(\d)/g, '$$$1'),
+      };
+    });
+    $rulesStatus.textContent = `${out.length} 條自訂規則生效，跑在內建規則之前。`;
+    return out;
+  } catch (err) {
+    $rulesStatus.textContent = '規則沒有生效：' + err.message;
+    return [];
+  }
+}
+
 function run() {
-  const { text, hits } = deidentify($in.value, { disabled: disabledRules() });
+  const { text, hits } = deidentify($in.value,
+    { disabled: disabledRules(), extra: parseExtraRules() });
   $out.innerHTML = highlight(text);
   $hits.innerHTML = Object.entries(hits)
     .map(([k, v]) => `<span class="hit">${k} ×${v}</span>`).join('');
+  const survivors = auditNumbers(text);
+  $audit.innerHTML = survivors
+    .map(([tok, n, kind]) =>
+      `<li><code>${escapeHtml(tok)}</code> ×${n} — ${escapeHtml(kind)}</li>`)
+    .join('');
+  $auditEmpty.style.display = survivors.length ? 'none' : '';
 }
 
 const $demo1 = document.getElementById('demo1');
 const $demo2 = document.getElementById('demo2');
+const $demo3 = document.getElementById('demo3');
 
 // The loaded sample's button carries .primary; hand-edited text carries none.
 function markLoaded(btn) {
-  for (const b of [$demo1, $demo2]) b.classList.toggle('primary', b === btn);
+  for (const b of [$demo1, $demo2, $demo3]) b.classList.toggle('primary', b === btn);
 }
 
 $in.addEventListener('input', () => { markLoaded(null); run(); });
 $demo1.onclick = () => { $in.value = SAMPLES.demo1; markLoaded($demo1); run(); };
 $demo2.onclick = () => { $in.value = SAMPLES.demo2; markLoaded($demo2); run(); };
+$demo3.onclick = () => { $in.value = SAMPLES.demo3; markLoaded($demo3); run(); };
 document.getElementById('clear').onclick = () => { $in.value = ''; markLoaded(null); run(); };
+$rules.addEventListener('input', run);
+$rules.placeholder = JSON.stringify([{
+  name: 'my_mrn',
+  pattern: '(?<![A-Za-z0-9])\\d{8}(?!\\d)',
+  replacement: '[病歷號]',
+  description: '我們的病歷號：裸 8 位數',
+}], null, 2);
 
 document.getElementById('rulelist').innerHTML = RULES
   .map(r => `<li><label><input type="checkbox" data-rule="${r.name}" checked> ` +

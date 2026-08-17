@@ -30,6 +30,15 @@ shapes into a rules file, mask again.
   classifies, the human decides — its output is the input to your rules file.
   新增 `mask --audit`：列出遮完仍存活的數字串並猜形狀，猜測只供人裁決；
   audit 的輸出就是 `--rules` 檔的素材。
+- **The browser demo runs the same loop.** An audit panel under the masked
+  output lists surviving number shapes; a custom-rules box takes the same
+  JSON as `--rules` (strictly validated, errors shown, never silently
+  dropped); a third sample shows an English SOAP note. The audit/checksum/
+  classification JS is generated from the Python source by
+  `tools/export_rules_js.py` and held to it by the parity tests — same
+  no-drift guarantee as the rule table.
+  demo 頁同步：輸出下方有 audit 面板、自訂規則框吃與 `--rules` 相同的 JSON、
+  新增英文 SOAP 範例；JS 端一樣由 Python 產生並受 parity 測試看守。
 - **Bilingual labels.** `Chart No:` / `MRN` / `Case No.` join `病歷號`;
   `DOB:` / `date of birth` / `birthday` join `生日`; `Name: WANG, TA-MING` /
   `Name: Chen Mei-Ling` join `姓名` — in the masking rules **and** in

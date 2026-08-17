@@ -236,8 +236,8 @@ chart-scrub mask note.txt --rules my-hospital.json --audit
 ```
 
 重複到 audit 乾淨、或剩下的確定都不是識別碼為止。`ingest` 也吃 `--rules`，
-同一個檔案可以用在完整管線。（自訂規則只在 CLI／library 生效，瀏覽器 demo
-只帶內建規則表。）
+同一個檔案可以用在完整管線。[瀏覽器 demo](https://drpwchen.github.io/chart-scrub/)
+也有同一個迴圈：輸出下方有 audit 面板，自訂規則框吃的 JSON 跟 `--rules` 一模一樣。
 
 **要改更深的東西，請 fork 過去改成你的版本。** 最可能要動的地方：
 
