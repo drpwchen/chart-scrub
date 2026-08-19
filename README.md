@@ -374,10 +374,12 @@ on law.moj.gov.tw, 2026-08; not legal advice):
   disclosing what you learn in practice without cause, and §103 puts the
   NT$50,000–250,000 fine on the individual as well as the institution.
   Hospitals must log every access and copy (醫療機構電子病歷製作及管理辦法
-  §13); at hospitals of 100 beds or more, staff are separately barred from
-  taking work documents off-site and usage/trail logs are kept for at least
-  six months (醫院個人資料檔案安全維護計畫實施辦法 §8, §15). Obtaining
-  records beyond your care relationship can reach 刑法 §359. Same keystrokes,
+  §13); at hospitals of 100 beds or more, 醫院個人資料檔案安全維護計畫實施辦法
+  requires custody and confidentiality undertakings from staff (§11(3)),
+  requires documents held for work to be handed over — not carried off —
+  when they leave (§11(4)), and keeps usage and trail logs for at least six
+  months (§15). Obtaining records beyond your care relationship can reach
+  刑法 §359. Same keystrokes,
   different scope: your own patient for care is authorised; accumulating
   beyond that is not, even on your own account.
 - **De-identification is not a free pass outward.** The Constitutional Court

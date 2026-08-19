@@ -3,6 +3,24 @@
 All notable changes to this project are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.3] — 2026-08-20
+
+Documentation only. Corrects a mis-cited provision introduced in 0.6.2.
+
+### Fixed
+
+- **醫院個人資料檔案安全維護計畫實施辦法 was cited as §8 for a rule it does
+  not contain.** 0.6.2 stated that §8 bars staff from taking work documents
+  off-site. It does not: §8 governs the hospital's own collection scope and
+  transmission ("醫院於傳輸個人資料時，應採取必要保護措施；國際傳輸電子病歷時，
+  並應符合醫療機構電子病歷製作及管理辦法之規定"). The "不得攜離使用" wording
+  lives in §11(4) and is bound to **handover on leaving employment**, not to
+  a general prohibition during employment; §11(3) covers the in-service duty
+  as custody and confidentiality undertakings. Both READMEs now cite §11(3),
+  §11(4) and §15, and no longer describe the rule as a blanket ban on taking
+  documents off-site. Re-checked against law.moj.gov.tw current text
+  (111-09-23).
+
 ## [0.6.2] — 2026-08-17
 
 Documentation only. A second pass over the legal section after independent
