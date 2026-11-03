@@ -3,6 +3,17 @@
 All notable changes to this project are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.4] — 2026-11-03 — AGENTS.md for AI coding agents
+
+Documentation only; the one code change is the version string.
+
+### Added
+- **`AGENTS.md`** — hard rules, layout and how to run the tests, for AI coding agents working in this repo.
+- **`CLAUDE.md`** — a one-line `@AGENTS.md` bridge so older Claude Code clients, which only read `CLAUDE.md`, pick up the same rules.
+
+### Fixed
+- `chart_scrub.__version__` still said 0.6.2 in the 0.6.3 release; it now matches `pyproject.toml`.
+
 ## [0.6.3] — 2026-08-20
 
 Documentation only. Corrects a mis-cited provision introduced in 0.6.2.
