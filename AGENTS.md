@@ -57,7 +57,7 @@ the code or running it on someone's data.
 - `chart_scrub/pseudonymize.py` — resolve subject → alias → DOB→age → other
   patients → masking net → residue check → refuse on survivors; `rehydrate()`.
 - `chart_scrub/store.py` — `AliasStore` (SQLite).
-- `docs/` — static browser demo, no build step, no dependencies.
+- `docs/` — static browser demo, no build step, no dependencies (plus prose: `legal-taiwan*.md`, `other-routes*.md`).
 - `examples/litellm_callback.py` — outbound/inbound hook example
   (`tests/test_example_litellm.py` covers it).
 - `tools/export_rules_js.py`, `tools/js_deid_runner.mjs` — JS parity.

@@ -3,6 +3,20 @@
 All notable changes to this project are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.5] — 2026-11-14 — Docs: README quality pass
+
+Documentation only; the one code change is the version string.
+
+### Docs
+- README (both languages): added a requirements-and-cost line under Install, a support line, and a footer Support section.
+- README: moved the long legal section and the comparison with gateway DLP tools into `docs/legal-taiwan.md` and `docs/other-routes.md` (and `.zh-TW` twins); the README keeps a short summary and links. Text moved verbatim, anchors kept.
+- Added `CITATION.cff` and `SECURITY.md` (private reporting through GitHub).
+
+### 文件
+- README（中英文）：Install 下新增需求與費用、支持連結與頁尾 Support 區塊。
+- README：把冗長的法律面與 gateway DLP 比較搬到 `docs/legal-taiwan*.md`、`docs/other-routes*.md`，README 留摘要與連結；內容原文搬移，錨點保留。
+- 新增 `CITATION.cff` 與 `SECURITY.md`（透過 GitHub 私下通報）。
+
 ## [0.6.4] — 2026-11-03 — AGENTS.md for AI coding agents
 
 Documentation only; the one code change is the version string.
